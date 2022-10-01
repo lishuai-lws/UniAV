@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: UniVL-AV",
+            "type": "python",
+            "request": "launch",
+            "program": "/home/lishuai/UniVL-AV",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd":"/home/lishuai/UniVL-AV",
+            "env": {"PYTHONPATH":"/home/lishuai/UniVL-AV"},
+        }
+    ]
+}
