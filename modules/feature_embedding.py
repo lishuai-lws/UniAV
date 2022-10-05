@@ -38,7 +38,7 @@ def get_args(description='data embedding'):
     parser.add_argument("--audiofeature_persecond",default=50,help=" wav2vec2.0 per second feature numbers")
     parser.add_argument("--min_audio_second",default=1,help="最短的语音时长，单位秒")
     parser.add_argument("--unlabeled_data_path", default="/public/home/zwchen209/Face-Detect-Track-Extract-main/output")
-    parser.add_argument("--unlabeled_data_csv_path", default="/public/home/zwchen209/Face-Detect-Track-Extract-main/output/data/unlabeled_data.csv")
+    parser.add_argument("--unlabeled_data_csv_path", default="/public/home/zwchen209/lishuai/data/unlabeled_data.csv")
 
     args = parser.parse_args()
 
