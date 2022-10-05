@@ -406,21 +406,12 @@ class AVEncoder(PreTrainedModel):
         self.visual = visual_model
         self.cross = cross_model
 
-    def forward(self, audio, video, video_mask, output_all_encoded_layers=True):
+    def forward(self, audio, video, video_mask):
         audio_output = audio
         visual_output = video
-        audio_all_encoder_layers = []
-        visual_all_encoder_layers = []
-        for _ in range(self.num_hidden_layers):
-            audio_output, visual_output = self.get_audio_visual_output(audio, video, video_mask, shaped=True)
-            audio_output, visual_output = self.get_cross_encoder_output(audio, video, video_mask=None)
-            if output_all_encoded_layers:
-                audio_all_encoder_layers.append(audio_output)
-                visual_all_encoder_layers.append(visual_output)
-        if not output_all_encoded_layers:
-            audio_all_encoder_layers.append(audio_output)
-            visual_all_encoder_layers.append(visual_output)
-        return audio_all_encoder_layers, visual_all_encoder_layers
+        audio_output, visual_output = self.get_audio_visual_output(audio, video, video_mask, shaped=True)
+        audio_output, visual_output = self.get_cross_encoder_output(audio, video, video_mask=None)
+        return audio_output, visual_output
 
     def get_audio_visual_output(self, audio, video, video_mask, shaped=False):
         if shaped is False:
@@ -434,3 +425,12 @@ class AVEncoder(PreTrainedModel):
         visual_output = visual_layers[-1]
 
         return  audio_ouput, visual_output 
+    def get_cross_encoder_output(self,audio_input, visual_input, video_mask=None):
+
+        audio_output = self.cross(audio_input, visual_input, None, output_all_encoded_layers=True)
+        audio_output = audio_output[-1]
+
+        visual_output = self.cross(visual_input, audio_input, None, output_all_encoded_layers=True)
+        visual_output = visual_output[-1]
+
+        return audio_output, visual_output

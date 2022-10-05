@@ -21,6 +21,7 @@ from __future__ import print_function
 
 import logging
 import numpy as np
+import copy
 
 import torch
 from torch import nn
@@ -30,7 +31,7 @@ from torch.nn import CrossEntropyLoss, MSELoss
 from modules.until_module import PreTrainedModel, LayerNorm, CrossEn, MILNCELoss, MaxMarginRankingLoss
 from modules.module_bert import BertModel, BertConfig, BertOnlyMLMHead
 from modules.module_visual import VisualModel, VisualConfig, VisualOnlyMLMHead
-from modules.module_cross import CrossModel, CrossConfig
+from modules.module_cross import CrossModel, CrossConfig, AVEncoder
 from modules.module_decoder import DecoderModel, DecoderConfig
 from modules.module_audio import AudioConfig, AudioModel, AudioOnlyMLMHead
 
@@ -41,6 +42,7 @@ class UniVLPreTrainedModel(PreTrainedModel, nn.Module):
     """ An abstract class to handle weights initialization and
         a simple interface for dowloading and loading pretrained models.
     """
+
     def __init__(self, bert_config, visual_config, cross_config, decoder_config, *inputs, **kwargs):
         # utilize bert config as base config
         super(UniVLPreTrainedModel, self).__init__(bert_config)
@@ -66,20 +68,27 @@ class UniVLPreTrainedModel(PreTrainedModel, nn.Module):
             elif task_config.local_rank == -1:
                 task_config.local_rank = 0
 
-        bert_config, state_dict = BertConfig.get_config(pretrained_bert_name, cache_dir, type_vocab_size, state_dict, task_config=task_config)
-        visual_config, _ = VisualConfig.get_config(visual_model_name, cache_dir, type_vocab_size, state_dict=None, task_config=task_config)
-        cross_config, _ = CrossConfig.get_config(cross_model_name, cache_dir, type_vocab_size, state_dict=None, task_config=task_config)
-        decoder_config, _ = DecoderConfig.get_config(decoder_model_name, cache_dir, type_vocab_size, state_dict=None, task_config=task_config)
+        bert_config, state_dict = BertConfig.get_config(
+            pretrained_bert_name, cache_dir, type_vocab_size, state_dict, task_config=task_config)
+        visual_config, _ = VisualConfig.get_config(
+            visual_model_name, cache_dir, type_vocab_size, state_dict=None, task_config=task_config)
+        cross_config, _ = CrossConfig.get_config(
+            cross_model_name, cache_dir, type_vocab_size, state_dict=None, task_config=task_config)
+        decoder_config, _ = DecoderConfig.get_config(
+            decoder_model_name, cache_dir, type_vocab_size, state_dict=None, task_config=task_config)
 
-        model = cls(bert_config, visual_config, cross_config, decoder_config, *inputs, **kwargs)
+        model = cls(bert_config, visual_config, cross_config,
+                    decoder_config, *inputs, **kwargs)
 
         assert model.bert is not None
         assert model.visual is not None
 
         if state_dict is not None:
-            model = cls.init_preweight(model, state_dict, task_config=task_config)
+            model = cls.init_preweight(
+                model, state_dict, task_config=task_config)
 
         return model
+
 
 class NormalizeVideo(nn.Module):
     def __init__(self, task_config):
@@ -92,31 +101,38 @@ class NormalizeVideo(nn.Module):
         video = self.visual_norm2d(video)
         return video
 
+
 def show_log(task_config, info):
     if task_config is None or task_config.local_rank == 0:
         logger.warning(info)
 
+
 def update_attr(target_name, target_config, target_attr_name, source_config, source_attr_name, default_value=None):
     if hasattr(source_config, source_attr_name):
         if default_value is None or getattr(source_config, source_attr_name) != default_value:
-            setattr(target_config, target_attr_name, getattr(source_config, source_attr_name))
+            setattr(target_config, target_attr_name,
+                    getattr(source_config, source_attr_name))
             show_log(source_config, "Set {}.{}: {}.".format(target_name,
                                                             target_attr_name, getattr(target_config, target_attr_name)))
     return target_config
 
+
 def check_attr(target_name, task_config):
     return hasattr(task_config, target_name) and task_config.__dict__[target_name]
 
+
 class UniVL(UniVLPreTrainedModel):
     def __init__(self, bert_config, visual_config, cross_config, decoder_config, task_config):
-        super(UniVL, self).__init__(bert_config, visual_config, cross_config, decoder_config)
+        super(UniVL, self).__init__(bert_config,
+                                    visual_config, cross_config, decoder_config)
         self.task_config = task_config
         self.ignore_video_index = -1
 
         assert self.task_config.max_words <= bert_config.max_position_embeddings
         assert self.task_config.max_words <= decoder_config.max_target_embeddings
         assert self.task_config.max_frames <= visual_config.max_position_embeddings
-        assert self.task_config.max_words + self.task_config.max_frames <= cross_config.max_position_embeddings
+        assert self.task_config.max_words + \
+            self.task_config.max_frames <= cross_config.max_position_embeddings
 
         self._stage_one = True
         self._stage_two = False
@@ -124,7 +140,8 @@ class UniVL(UniVLPreTrainedModel):
         if check_attr('stage_two', self.task_config):
             self._stage_one = False
             self._stage_two = self.task_config.stage_two
-        show_log(task_config, "Stage-One:{}, Stage-Two:{}".format(self._stage_one, self._stage_two))
+        show_log(
+            task_config, "Stage-One:{}, Stage-Two:{}".format(self._stage_one, self._stage_two))
 
         self.train_sim_after_cross = False
         if self._stage_one and check_attr('train_sim_after_cross', self.task_config):
@@ -133,7 +150,7 @@ class UniVL(UniVLPreTrainedModel):
 
         # Text Encoder ===>
         bert_config = update_attr("bert_config", bert_config, "num_hidden_layers",
-                                   self.task_config, "text_num_hidden_layers")
+                                  self.task_config, "text_num_hidden_layers")
         self.bert = BertModel(bert_config)
         bert_word_embeddings_weight = self.bert.embeddings.word_embeddings.weight
         bert_position_embeddings_weight = self.bert.embeddings.position_embeddings.weight
@@ -149,28 +166,32 @@ class UniVL(UniVLPreTrainedModel):
         if self._stage_one is False or self.train_sim_after_cross:
             # Cross Encoder ===>
             cross_config = update_attr("cross_config", cross_config, "num_hidden_layers",
-                                        self.task_config, "cross_num_hidden_layers")
+                                       self.task_config, "cross_num_hidden_layers")
             self.cross = CrossModel(cross_config)
             # <=== End of Cross Encoder
 
             if self.train_sim_after_cross is False:
                 # Decoder ===>
                 decoder_config = update_attr("decoder_config", decoder_config, "num_decoder_layers",
-                                           self.task_config, "decoder_num_hidden_layers")
-                self.decoder = DecoderModel(decoder_config, bert_word_embeddings_weight, bert_position_embeddings_weight)
+                                             self.task_config, "decoder_num_hidden_layers")
+                self.decoder = DecoderModel(
+                    decoder_config, bert_word_embeddings_weight, bert_position_embeddings_weight)
                 # <=== End of Decoder
 
             if self.task_config.do_pretrain:
-                self.cls = BertOnlyMLMHead(bert_config, bert_word_embeddings_weight)
-                self.cls_visual = VisualOnlyMLMHead(visual_config, visual_word_embeddings_weight)
+                self.cls = BertOnlyMLMHead(
+                    bert_config, bert_word_embeddings_weight)
+                self.cls_visual = VisualOnlyMLMHead(
+                    visual_config, visual_word_embeddings_weight)
                 self.alm_loss_fct = CrossEntropyLoss(ignore_index=-1)
-                
+
             self.similarity_dense = nn.Linear(bert_config.hidden_size, 1)
             self.decoder_loss_fct = CrossEntropyLoss(ignore_index=-1)
 
         self.normalize_video = NormalizeVideo(task_config)
 
-        mILNCELoss = MILNCELoss(batch_size=task_config.batch_size // task_config.n_gpu, n_pair=task_config.n_pair, )
+        mILNCELoss = MILNCELoss(batch_size=task_config.batch_size //
+                                task_config.n_gpu, n_pair=task_config.n_pair, )
         maxMarginRankingLoss = MaxMarginRankingLoss(margin=task_config.margin,
                                                     negative_weighting=task_config.negative_weighting,
                                                     batch_size=task_config.batch_size // task_config.n_gpu,
@@ -197,7 +218,8 @@ class UniVL(UniVLPreTrainedModel):
         video = self.normalize_video(video)
 
         if input_caption_ids is not None:
-            input_caption_ids = input_caption_ids.view(-1, input_caption_ids.shape[-1])
+            input_caption_ids = input_caption_ids.view(
+                -1, input_caption_ids.shape[-1])
             decoder_mask = decoder_mask.view(-1, decoder_mask.shape[-1])
 
         sequence_output, visual_output = self.get_sequence_visual_output(input_ids, token_type_ids, attention_mask,
@@ -213,22 +235,29 @@ class UniVL(UniVLPreTrainedModel):
 
             if self._stage_two:
                 if self.task_config.do_pretrain:
-                    pairs_masked_text = pairs_masked_text.view(-1, pairs_masked_text.shape[-1])
-                    pairs_token_labels = pairs_token_labels.view(-1, pairs_token_labels.shape[-1])
+                    pairs_masked_text = pairs_masked_text.view(
+                        -1, pairs_masked_text.shape[-1])
+                    pairs_token_labels = pairs_token_labels.view(
+                        -1, pairs_token_labels.shape[-1])
 
                     masked_video = self.normalize_video(masked_video)
-                    video_labels_index = video_labels_index.view(-1, video_labels_index.shape[-1])
+                    video_labels_index = video_labels_index.view(
+                        -1, video_labels_index.shape[-1])
 
                     sequence_output_alm, visual_output_alm = self.get_sequence_visual_output(pairs_masked_text, token_type_ids,
                                                                                              attention_mask, masked_video, video_mask, shaped=True)
 
-                    cross_output, pooled_output, concat_mask = self._get_cross_output(sequence_output_alm, visual_output_alm, attention_mask, video_mask)
-                    sequence_cross_output, visual_cross_output = torch.split(cross_output, [attention_mask.size(-1), video_mask.size(-1)], dim=1)
+                    cross_output, pooled_output, concat_mask = self._get_cross_output(
+                        sequence_output_alm, visual_output_alm, attention_mask, video_mask)
+                    sequence_cross_output, visual_cross_output = torch.split(
+                        cross_output, [attention_mask.size(-1), video_mask.size(-1)], dim=1)
 
-                    alm_loss = self._calculate_mlm_loss(sequence_cross_output, pairs_token_labels)
+                    alm_loss = self._calculate_mlm_loss(
+                        sequence_cross_output, pairs_token_labels)
                     loss += alm_loss
 
-                    nce_loss = self._calculate_mfm_loss(visual_cross_output, video, video_mask, video_labels_index)
+                    nce_loss = self._calculate_mfm_loss(
+                        visual_cross_output, video, video_mask, video_labels_index)
                     loss += nce_loss
 
                     sim_matrix = self.get_similarity_logits(sequence_output, visual_output, attention_mask, video_mask,
@@ -250,8 +279,10 @@ class UniVL(UniVLPreTrainedModel):
                     else:
                         raise NotImplementedError
 
-                    output_caption_ids = output_caption_ids.view(-1, output_caption_ids.shape[-1])
-                    decoder_loss = self.decoder_loss_fct(decoder_scores.view(-1, self.bert_config.vocab_size), output_caption_ids.view(-1))
+                    output_caption_ids = output_caption_ids.view(
+                        -1, output_caption_ids.shape[-1])
+                    decoder_loss = self.decoder_loss_fct(
+                        decoder_scores.view(-1, self.bert_config.vocab_size), output_caption_ids.view(-1))
                     loss += decoder_loss
 
                 if self.task_config.do_pretrain or self.task_config.task_type == "retrieval":
@@ -264,7 +295,8 @@ class UniVL(UniVLPreTrainedModel):
                     else:
                         raise NotImplementedError
 
-                    sim_loss_text_visual = self.loss_fct(sim_matrix_text_visual)
+                    sim_loss_text_visual = self.loss_fct(
+                        sim_matrix_text_visual)
                     loss += sim_loss_text_visual
 
             return loss
@@ -273,7 +305,8 @@ class UniVL(UniVLPreTrainedModel):
 
     def _calculate_mlm_loss(self, sequence_output_alm, pairs_token_labels):
         alm_scores = self.cls(sequence_output_alm)
-        alm_loss = self.alm_loss_fct(alm_scores.view(-1, self.bert_config.vocab_size), pairs_token_labels.view(-1))
+        alm_loss = self.alm_loss_fct(
+            alm_scores.view(-1, self.bert_config.vocab_size), pairs_token_labels.view(-1))
         return alm_loss
 
     def _calculate_mfm_loss(self, visual_output_alm, video, video_mask, video_labels_index):
@@ -285,14 +318,16 @@ class UniVL(UniVLPreTrainedModel):
 
         logits_matrix = torch.mm(afm_scores_tr, video_tr)
         video_mask_float = video_mask.to(dtype=torch.float)
-        mask_matrix = torch.mm(video_mask_float.view(-1, 1), video_mask_float.view(1, -1))
+        mask_matrix = torch.mm(video_mask_float.view(-1, 1),
+                               video_mask_float.view(1, -1))
         masked_logits = logits_matrix + (1. - mask_matrix) * -1e8
 
         logpt = F.log_softmax(masked_logits, dim=-1)
         logpt = torch.diag(logpt)
         nce_loss = -logpt
 
-        video_labels_index_mask = (video_labels_index != self.ignore_video_index)
+        video_labels_index_mask = (
+            video_labels_index != self.ignore_video_index)
         nce_loss = nce_loss.masked_select(video_labels_index_mask.view(-1))
         nce_loss = nce_loss.mean()
         return nce_loss
@@ -305,22 +340,26 @@ class UniVL(UniVLPreTrainedModel):
             video_mask = video_mask.view(-1, video_mask.shape[-1])
             video = self.normalize_video(video)
 
-        encoded_layers, _ = self.bert(input_ids, token_type_ids, attention_mask, output_all_encoded_layers=True)
+        encoded_layers, _ = self.bert(
+            input_ids, token_type_ids, attention_mask, output_all_encoded_layers=True)
         sequence_output = encoded_layers[-1]
 
-        visual_layers, _ = self.visual(video, video_mask, output_all_encoded_layers=True)
+        visual_layers, _ = self.visual(
+            video, video_mask, output_all_encoded_layers=True)
         visual_output = visual_layers[-1]
 
         return sequence_output, visual_output
 
     def _get_cross_output(self, sequence_output, visual_output, attention_mask, video_mask):
-        concat_features = torch.cat((sequence_output, visual_output), dim=1)  # concatnate tokens and frames
+        # concatnate tokens and frames
+        concat_features = torch.cat((sequence_output, visual_output), dim=1)
         concat_mask = torch.cat((attention_mask, video_mask), dim=1)
         text_type_ = torch.zeros_like(attention_mask)
         video_type_ = torch.ones_like(video_mask)
         concat_type = torch.cat((text_type_, video_type_), dim=1)
 
-        cross_layers, pooled_output = self.cross(concat_features, concat_type, concat_mask, output_all_encoded_layers=True)
+        cross_layers, pooled_output = self.cross(
+            concat_features, concat_type, concat_mask, output_all_encoded_layers=True)
         cross_output = cross_layers[-1]
 
         return cross_output, pooled_output, concat_mask
@@ -329,7 +368,8 @@ class UniVL(UniVLPreTrainedModel):
         attention_mask_un = attention_mask.to(dtype=torch.float).unsqueeze(-1)
         attention_mask_un[:, 0, :] = 0.
         sequence_output = sequence_output * attention_mask_un
-        text_out = torch.sum(sequence_output, dim=1) / torch.sum(attention_mask_un, dim=1, dtype=torch.float)
+        text_out = torch.sum(sequence_output, dim=1) / \
+            torch.sum(attention_mask_un, dim=1, dtype=torch.float)
 
         video_mask_un = video_mask.to(dtype=torch.float).unsqueeze(-1)
         visual_output = visual_output * video_mask_un
@@ -351,25 +391,31 @@ class UniVL(UniVLPreTrainedModel):
         if release_size > 0:
             split_size += [release_size]
 
-        sequence_output_splits = torch.split(sequence_output, split_size, dim=0)
+        sequence_output_splits = torch.split(
+            sequence_output, split_size, dim=0)
         attention_mask_splits = torch.split(attention_mask, split_size, dim=0)
         for i in range(len(split_size)):
             sequence_output_row = sequence_output_splits[i]
             attention_mask_row = attention_mask_splits[i]
-            sequence_output_l = sequence_output_row.unsqueeze(1).repeat(1, b_visual, 1, 1)
+            sequence_output_l = sequence_output_row.unsqueeze(
+                1).repeat(1, b_visual, 1, 1)
             sequence_output_l = sequence_output_l.view(-1, s_text, h_text)
-            attention_mask_l = attention_mask_row.unsqueeze(1).repeat(1, b_visual, 1)
+            attention_mask_l = attention_mask_row.unsqueeze(
+                1).repeat(1, b_visual, 1)
             attention_mask_l = attention_mask_l.view(-1, s_text)
 
             step_truth = sequence_output_row.size(0)
-            visual_output_r = visual_output.unsqueeze(0).repeat(step_truth, 1, 1, 1)
+            visual_output_r = visual_output.unsqueeze(
+                0).repeat(step_truth, 1, 1, 1)
             visual_output_r = visual_output_r.view(-1, s_visual, h_visual)
             video_mask_r = video_mask.unsqueeze(0).repeat(step_truth, 1, 1)
             video_mask_r = video_mask_r.view(-1, s_visual)
 
             cross_output, pooled_output, concat_mask = \
-                self._get_cross_output(sequence_output_l, visual_output_r, attention_mask_l, video_mask_r)
-            retrieve_logits_row = self.similarity_dense(pooled_output).squeeze(-1).view(step_truth, b_visual)
+                self._get_cross_output(
+                    sequence_output_l, visual_output_r, attention_mask_l, video_mask_r)
+            retrieve_logits_row = self.similarity_dense(
+                pooled_output).squeeze(-1).view(step_truth, b_visual)
 
             retrieve_logits_list.append(retrieve_logits_row)
         retrieve_logits = torch.cat(retrieve_logits_list, dim=0)
@@ -381,9 +427,11 @@ class UniVL(UniVLPreTrainedModel):
             video_mask = video_mask.view(-1, video_mask.shape[-1])
 
         if (self._stage_two and _pretrain_joint is False) or self.train_sim_after_cross:
-            retrieve_logits = self._cross_similarity(sequence_output, visual_output, attention_mask, video_mask)
+            retrieve_logits = self._cross_similarity(
+                sequence_output, visual_output, attention_mask, video_mask)
         else:
-            text_out, video_out = self._mean_pooling_for_similarity(sequence_output, visual_output, attention_mask, video_mask)
+            text_out, video_out = self._mean_pooling_for_similarity(
+                sequence_output, visual_output, attention_mask, video_mask)
             if self.task_config.use_mil is False:
                 text_out = F.normalize(text_out, dim=-1)
                 video_out = F.normalize(video_out, dim=-1)
@@ -398,12 +446,15 @@ class UniVL(UniVLPreTrainedModel):
             attention_mask = attention_mask.view(-1, attention_mask.shape[-1])
             video_mask = video_mask.view(-1, video_mask.shape[-1])
 
-            input_caption_ids = input_caption_ids.view(-1, input_caption_ids.shape[-1])
+            input_caption_ids = input_caption_ids.view(
+                -1, input_caption_ids.shape[-1])
             decoder_mask = decoder_mask.view(-1, decoder_mask.shape[-1])
 
         res_tuples = ()
-        cross_output, pooled_output, concat_mask = self._get_cross_output(sequence_output, visual_output, attention_mask, video_mask)
-        decoder_scores = self.decoder(input_caption_ids, encoder_outs=cross_output, answer_mask=decoder_mask, encoder_mask=concat_mask)
+        cross_output, pooled_output, concat_mask = self._get_cross_output(
+            sequence_output, visual_output, attention_mask, video_mask)
+        decoder_scores = self.decoder(
+            input_caption_ids, encoder_outs=cross_output, answer_mask=decoder_mask, encoder_mask=concat_mask)
 
         return decoder_scores, res_tuples
 
@@ -414,7 +465,8 @@ class UniVL(UniVLPreTrainedModel):
             attention_mask = attention_mask.view(-1, attention_mask.shape[-1])
             video_mask = video_mask.view(-1, video_mask.shape[-1])
 
-            input_caption_ids = input_caption_ids.view(-1, input_caption_ids.shape[-1])
+            input_caption_ids = input_caption_ids.view(
+                -1, input_caption_ids.shape[-1])
             decoder_mask = decoder_mask.view(-1, decoder_mask.shape[-1])
 
         decoder_scores, _ = self._get_decoder_score(sequence_output, visual_output,
@@ -428,6 +480,7 @@ class UniVL(UniVLPreTrainedModel):
 
         return decoder_scores_result
 
+
 class UniAVModel(PreTrainedModel, nn.Module):
     def __init__(self, audio_config, visual_config, cross_config, num_hidden_layers=6, *inputs, **kwargs):
         super(UniAVModel, self).__init__(audio_config)
@@ -437,7 +490,6 @@ class UniAVModel(PreTrainedModel, nn.Module):
         self.audio = None
         self.visual = None
         self.num_hidden_layers = num_hidden_layers
-
 
     @classmethod
     def from_pretrained(cls, pretrained_audio_name, visual_model_name, cross_model_name,
@@ -452,35 +504,37 @@ class UniAVModel(PreTrainedModel, nn.Module):
                 task_config.local_rank = 0
 
         audio_config, state_dict = AudioConfig.get_config(pretrained_audio_name, cache_dir, type_vocab_size, state_dict,
-                                                        task_config=task_config)
+                                                          task_config=task_config)
         visual_config, _ = VisualConfig.get_config(visual_model_name, cache_dir, type_vocab_size, state_dict=None,
                                                    task_config=task_config)
         cross_config, _ = CrossConfig.get_config(cross_model_name, cache_dir, type_vocab_size, state_dict=None,
                                                  task_config=task_config)
 
-        model = cls(audio_config, visual_config, cross_config, *inputs, **kwargs)
+        model = cls(audio_config, visual_config,
+                    cross_config, *inputs, **kwargs)
 
         assert model.bert is not None
         assert model.visual is not None
 
         if state_dict is not None:
-            model = cls.init_preweight(model, state_dict, task_config=task_config)
+            model = cls.init_preweight(
+                model, state_dict, task_config=task_config)
 
         return model
 
 
 class UniAV(UniAVModel):
     def __init__(self, audio_config, visual_config, cross_config, task_config):
-        super(UniAV, self).__init__(audio_config, visual_config, cross_config, task_config)
+        super(UniAV, self).__init__(audio_config,
+                                    visual_config, cross_config, task_config)
         self.task_config = task_config
         self.ignore_video_index = -1
 
         assert self.task_config.max_frames <= visual_config.max_position_embeddings
 
-
         # Audio Encoder ===>
         audio_config = update_attr("audio_config", audio_config, "num_hidden_layers",
-                                    self.task_config, "audio_num_hidden_layers")
+                                   self.task_config, "audio_num_hidden_layers")
         self.audio = AudioModel(audio_config)
         audio_word_embeddings_weight = self.audio.embeddings.word_embeddings.weight
         # <=== End of Video Encoder
@@ -494,19 +548,28 @@ class UniAV(UniAVModel):
 
         # Cross Encoder ===>
         cross_config = update_attr("cross_config", cross_config, "num_hidden_layers",
-                                    self.task_config, "cross_num_hidden_layers")
+                                   self.task_config, "cross_num_hidden_layers")
         self.cross = CrossModel(cross_config)
         # <=== End of Cross Encoder
+
+        # Encoder Lyayers ===>
+        encoder_layer = AVEncoder(self.audio, self.visual, self.cross)
+        self.encoder = nn.ModuleList([copy.deepcopy(
+            encoder_layer) for _ in range(self.task_config.num_hidden_layers)])
+        # <=== End of Encoder Lyayers
+
         # TODO: 还不理解是哪一部分的
         if self.task_config.do_pretrain:
-            self.cls_visual = VisualOnlyMLMHead(visual_config, visual_word_embeddings_weight)
+            self.cls_visual = VisualOnlyMLMHead(
+                visual_config, visual_word_embeddings_weight)
             self.alm_loss_fct = CrossEntropyLoss(ignore_index=-1)
-                
+
             # self.similarity_dense = nn.Linear(bert_config.hidden_size, 1)
             self.decoder_loss_fct = CrossEntropyLoss(ignore_index=-1)
         self.normalize_video = NormalizeVideo(task_config)
 
-        mILNCELoss = MILNCELoss(batch_size=task_config.batch_size // task_config.n_gpu, n_pair=task_config.n_pair, )
+        mILNCELoss = MILNCELoss(batch_size=task_config.batch_size //
+                                task_config.n_gpu, n_pair=task_config.n_pair, )
         maxMarginRankingLoss = MaxMarginRankingLoss(margin=task_config.margin,
                                                     negative_weighting=task_config.negative_weighting,
                                                     batch_size=task_config.batch_size // task_config.n_gpu,
@@ -516,57 +579,61 @@ class UniAV(UniAVModel):
         self._pretrain_sim_loss_fct = maxMarginRankingLoss
         self.apply(self.init_weights)
     # todo: forward
-    def forward(self,audio,video,video_mask, video_labels_index, emotion_label):
+
+    def forward(self, audio, video, video_mask, video_labels_index, emotion_label):
 
         audio = audio.view(-1, audio.shape[-1])
-        video_mask = video_mask.view(-1,video_mask.shape[-1])
-        video = self.normalize_video(video)#todo：干什么的
+        video_mask = video_mask.view(-1, video_mask.shape[-1])
+        video = self.normalize_video(video)  # todo：干什么的
 
-        audio_output, visual_output = self.get_audio_visual_output(audio, video, video_mask, shaped=True)
+        audio_output, visual_output = self.get_audio_visual_output(
+            audio, video, video_mask, shaped=True)
 
         if self.training:
             loss = 0.
-            sim_matrix = self.get_similarity_logits(audio_output, visual_output, video_mask, shaped=True)
+            sim_matrix = self.get_similarity_logits(
+                audio_output, visual_output, video_mask, shaped=True)
             sim_loss = self.loss_fct(sim_matrix)
             loss += sim_loss
-
-
-
 
     def get_audio_visual_output(self, audio, video, video_mask, shaped=False):
         if shaped is False:
             audio = audio.view(-1, audio.shape[-1])
             video_mask = video_mask.view(-1, video_mask.shape[-1])
             video = self.normalize_video(video)
-        audio_layers, _ = self.audio(audio, None, output_all_encoded_layers=True)
+        audio_layers, _ = self.audio(
+            audio, None, output_all_encoded_layers=True)
         audio_ouput = audio_layers[-1]
 
-        visual_layers, _ = self.visual(video, video_mask, output_all_encoded_layers=True)
+        visual_layers, _ = self.visual(
+            video, video_mask, output_all_encoded_layers=True)
         visual_output = visual_layers[-1]
 
-        return  audio_ouput, visual_output 
+        return audio_ouput, visual_output
 
-    def get_cross_encoder_output(self,audio_input, visual_input, video_mask=None):
+    def get_cross_encoder_output(self, audio_input, visual_input, video_mask=None):
 
-        audio_output = self.cross(audio_input, visual_input, None, output_all_encoded_layers=True)
+        audio_output = self.cross(
+            audio_input, visual_input, None, output_all_encoded_layers=True)
         audio_output = audio_output[-1]
 
-        visual_output = self.cross(visual_input, audio_input, None, output_all_encoded_layers=True)
+        visual_output = self.cross(
+            visual_input, audio_input, None, output_all_encoded_layers=True)
         visual_output = visual_output[-1]
 
         return audio_output, visual_output
 
-    def get_similarity_logits(self):
-        pass
+    def get_similarity_logits(self, audio, video, video_mask, shaped=False):
+        audio_output, visual_output = self.get_encoder_outputs() 
 
     def get_encoder_outputs(self, audio, video, video_mask, output_all_encoded_layers=True):
         audio_output = audio
         visual_output = video
         audio_all_encoder_layers = []
         visual_all_encoder_layers = []
-        for _ in range(self.num_hidden_layers):
-            audio_output, visual_output = self.get_audio_visual_output(audio, video, video_mask, shaped=True)
-            audio_output, visual_output = self.get_cross_encoder_output(audio, video, video_mask=None)
+        for layer in self.encoder:
+            audio_output, visual_output = layer(
+                audio_output, visual_output, video_mask)
             if output_all_encoded_layers:
                 audio_all_encoder_layers.append(audio_output)
                 visual_all_encoder_layers.append(visual_output)
@@ -574,6 +641,3 @@ class UniAV(UniAVModel):
             audio_all_encoder_layers.append(audio_output)
             visual_all_encoder_layers.append(visual_output)
         return audio_all_encoder_layers, visual_all_encoder_layers
-
-
-

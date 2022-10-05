@@ -84,9 +84,11 @@ def get_args(description='UniVL on Pretrain'):
     parser.add_argument('--sampled_use_mil', action='store_true', help="Whether use MIL, has a high priority than use_mil.")
 
     parser.add_argument('--text_num_hidden_layers', type=int, default=12, help="Layer NO. of text.")
+    parser.add_argument('--audio_num_hidden_layers', type=int, default=6, help="Layer NO. of visual.")
     parser.add_argument('--visual_num_hidden_layers', type=int, default=6, help="Layer NO. of visual.")
     parser.add_argument('--cross_num_hidden_layers', type=int, default=2, help="Layer NO. of cross.")
     parser.add_argument('--decoder_num_hidden_layers', type=int, default=3, help="Layer NO. of decoder.")
+    parser.add_argument('--num_hidden_layers', type=int, default=6, help="Layer NO. of encoder.")
 
     parser.add_argument('--stage_two', action='store_true', help="Whether training with decoder.")
     parser.add_argument('--pretrain_enhance_vmodal', action='store_true', help="Enhance visual and other modalities when pretraining.")
