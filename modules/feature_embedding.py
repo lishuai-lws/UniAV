@@ -215,7 +215,8 @@ def cmumosei_data_embedding(opts):
     print("cmumosei_data_embedding done")
 if __name__=="__main__":
     args = get_args()
-    cmumosei_data_embedding(args)
+    # cmumosei_data_embedding(args)
+    unlabeled_data_csv(args)
 
 
 # 运行命令
