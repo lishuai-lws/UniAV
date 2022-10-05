@@ -4,7 +4,7 @@ from transformers import AutoFeatureExtractor, ResNetModel, ResNetForImageClassi
 import torch
 from transformers import logging
 
-#修改告警显示级别
+#warning level 
 logging.set_verbosity_warning()
 
 
@@ -30,7 +30,7 @@ class ResNet50(nn.Module):
     def forward(self, image):
         inputs = self.feature_extractor(image, return_tensors="pt")
         feature = self.model(**inputs).pooler_output
-        #[1,2048,1,1]降维为[2048]
+        #[1,2048,1,1]->[2048]
         feature = torch.squeeze(feature)
         return feature
 

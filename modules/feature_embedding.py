@@ -18,7 +18,7 @@ import math
 import random
 from transformers import logging
 
-#修改告警显示级别
+#warning level 
 logging.set_verbosity_error()
 from tqdm import tqdm
 
@@ -36,7 +36,7 @@ def get_args(description='data embedding'):
     parser.add_argument("--feature_path", default="/home/lishuai/workspace/feature/cmumosei")
     parser.add_argument("--max_seq_length",default=512,help=" max sequence length for encoder")
     parser.add_argument("--audiofeature_persecond",default=50,help=" wav2vec2.0 per second feature numbers")
-    parser.add_argument("--min_audio_second",default=1,help="最短的语音时长，单位秒")
+    parser.add_argument("--min_audio_second",default=1,help=" min second of audio")
     parser.add_argument("--unlabeled_data_path", default="/public/home/zwchen209/Face-Detect-Track-Extract-main/output")
     parser.add_argument("--unlabeled_data_csv_path", default="/public/home/zwchen209/lishuai/data/unlabeled_data.csv")
 
@@ -57,27 +57,27 @@ def unlabeled_data_csv(opts):
         for audio in tqdm(audios_list):
             id  = file + "_" + audio[:-4]
             audio_path = os.path.join(file_path, audio)
-            #读取音频数据
+            # load audio wava
             wave_data, samplerate = librosa.load(audio_path, sr=16000)
-            audio_second = wave_data.shape[0]/samplerate#语音时长
-            max_audio_second = opts.max_seq_length/opts.audiofeature_persecond#最长的语音时长
-                  #大于语音最大时长需要切分
+            audio_second = wave_data.shape[0]/samplerate#audio length
+            max_audio_second = opts.max_seq_length/opts.audiofeature_persecond#max audio length
+            # audio length > max audio length
             if audio_second>max_audio_second:
                 segment_num = math.ceil(audio_second/(max_audio_second-1))
                 for seg in range(segment_num):
                     # print ("seg:",seg)
-                    # 提取音频特征
+                    # extract audio features
                     a_start = int((seg*(max_audio_second-1))*samplerate)
                     a_end = int(min(wave_data.shape[0],a_start+max_audio_second*samplerate))
                     # print("start:",a_start,"end:",a_end) 
-                    #小于最短语音时长的舍弃掉
+                    #Discard less than the shortest speech duration
                     if a_end-a_start<opts.min_audio_second*samplerate:
                         continue
 
                     # audioFeature = audio_Wav2Vec2(opts,wave_data[a_start:a_end])
                     # print("audioFeature.shape:",audioFeature.shape)
 
-                    # 提取视频特征
+                    # extract video feature
                     # video_length = len(video)
                     # v_start = math.floor(video_length*a_start/wave_data.shape[0])
                     # v_end = math.ceil(video_length*a_end/wave_data.shape[0])
@@ -85,7 +85,7 @@ def unlabeled_data_csv(opts):
                     # videoFeature = video_resnet50(opts,video[v_start:v_end])
                     # print("len(videoFeature):",len(videoFeature))
 
-                    #保存特征到文件
+                    #save feature to_csv
                     audio_file = "audio/"+id+"_"+str(seg)+".npy"
                     video_file = "video/"+id+"_"+str(seg)+".npy"
                     # audioFeaturePath = os.path.join(opts.feature_path,audio_file)
@@ -95,20 +95,20 @@ def unlabeled_data_csv(opts):
 
                     df = pd.DataFrame([[audio_file,video_file]])
                     df.to_csv(csv_path,mode="a",index=False, header=False)
-                    del df #释放资源，7%,37%
+                    del df 
             else :
-                    #小于最短语音时长的舍弃掉
+                    #Discard less than the shortest speech duration
                     if wave_data.shape[0]<opts.min_audio_second*samplerate:
                         continue
-                    # 提取音频特征
+                    # extract audio features
                     # audioFeature = audio_Wav2Vec2(opts,wave_data)
                     # print(audioFeature.shape)
 
-                    # 提取视频特征
+                    # extract video feature
                     # videoFeature = video_resnet50(opts,video)
                     # print(len(videoFeature))
 
-                    #保存特征到文件
+                    #save feature to_csv
                     audio_file = "audio/"+id+".npy"
                     video_file = "video/"+id+".npy"
                     # audioFeaturePath = os.path.join(opts.feature_path,audio_file)
@@ -119,85 +119,9 @@ def unlabeled_data_csv(opts):
                     # df = pd.DataFrame([[audio_file,video_file,label]])
                     df = pd.DataFrame([[audio_file,video_file]])
                     df.to_csv(csv_path,mode="a",index=False, header=False)
-                    del df #释放资源，7%,37%
+                    del df 
 
-def unlabeled_audio_feature(opts):
-    data_path = opts.unlabeled_data_path
-    csv_path = opts.unlabeled_data_csv_path
-    audios_path = os.path.join(data_path, "audio")
-    videos_path = os.path.join(data_path, "images")
-    files_list = os.listdir(audios_path)
-    df = pd.DataFrame(columns=["audio_feature","video_feature"])
-    df.to_csv(csv_path,index=False)
-    for file in tqdm(files_list):
-        file_path = os.path.join(audios_path, file)
-        audios_list = os.listdir(file_path)
-        for audio in tqdm(audios_list):
-            id  = audio[:-4]
-            audio_path = os.path.join(file_path, audio)
-            #读取音频数据
-            wave_data, samplerate = librosa.load(audio_path, sr=16000)
-            audio_second = wave_data.shape[0]/samplerate#语音时长
-            max_audio_second = opts.max_seq_length/opts.audiofeature_persecond#最长的语音时长
-                  #大于语音最大时长需要切分
-            if audio_second>max_audio_second:
-                segment_num = math.ceil(audio_second/(max_audio_second-1))
-                for seg in range(segment_num):
-                    print ("seg:",seg)
-                    # 提取音频特征
-                    a_start = int((seg*(max_audio_second-1))*samplerate)
-                    a_end = int(min(wave_data.shape[0],a_start+max_audio_second*samplerate))
-                    print("start:",a_start,"end:",a_end) 
-                    #小于最短语音时长的舍弃掉
-                    if a_end-a_start<opts.min_audio_second*samplerate:
-                        continue
 
-                    # audioFeature = audio_Wav2Vec2(opts,wave_data[a_start:a_end])
-                    # print("audioFeature.shape:",audioFeature.shape)
-
-                    # 提取视频特征
-                    # video_length = len(video)
-                    # v_start = math.floor(video_length*a_start/wave_data.shape[0])
-                    # v_end = math.ceil(video_length*a_end/wave_data.shape[0])
-                    # print("v_start:",v_start,"v_end:",v_end)
-                    # videoFeature = video_resnet50(opts,video[v_start:v_end])
-                    # print("len(videoFeature):",len(videoFeature))
-
-                    #保存特征到文件
-                    audio_file = "audio/"+id+"_"+str(seg)+".npy"
-                    video_file = "video/"+id+"_"+str(seg)+".npy"
-                    # audioFeaturePath = os.path.join(opts.feature_path,audio_file)
-                    # videoFeaturePath = os.path.join(opts.feature_path,video_file)
-                    # np.save(audioFeaturePath,audioFeature)
-                    # np.save(videoFeaturePath,videoFeature)
-
-                    df = pd.DataFrame([[audio_file,video_file]])
-                    df.to_csv(csv_path,mode="a",index=False, header=False)
-                    del df #释放资源，7%,37%
-            else :
-                    #小于最短语音时长的舍弃掉
-                    if wave_data.shape[0]<opts.min_audio_second*samplerate:
-                        continue
-                    # 提取音频特征
-                    # audioFeature = audio_Wav2Vec2(opts,wave_data)
-                    # print(audioFeature.shape)
-
-                    # 提取视频特征
-                    # videoFeature = video_resnet50(opts,video)
-                    # print(len(videoFeature))
-
-                    #保存特征到文件
-                    audio_file = "audio/"+id+".npy"
-                    video_file = "video/"+id+".npy"
-                    # audioFeaturePath = os.path.join(opts.feature_path,audio_file)
-                    # videoFeaturePath = os.path.join(opts.feature_path,video_file)
-                    # np.save(audioFeaturePath,audioFeature)
-                    # np.save(videoFeaturePath,videoFeature)
-
-                    # df = pd.DataFrame([[audio_file,video_file,label]])
-                    df = pd.DataFrame([[audio_file,video_file]])
-                    df.to_csv(csv_path,mode="a",index=False, header=False)
-                    del df #释放资源，7%,37%
 
 def cmumosei_data_embedding(opts):
     ids_path = opts.cmumosei_ids_path
@@ -211,11 +135,11 @@ def cmumosei_data_embedding(opts):
         df.to_csv(opts.csv_path,index=False)
     for id in tqdm(ids):
         print("id:",id)#DNzA2UIkRZk_2 4142
-        #读取音频数据
+        # load audio wava
         wave_data, samplerate = librosa.load(os.path.join(audio_path, id + ".wav"), sr=16000)
         print(wave_data.shape,"data length:",wave_data.shape[0]/samplerate)
 
-        #读取视频的图片数据
+        # read video images
         videodir = os.path.join(video_path, id + "_aligned")
         imglist = os.listdir(videodir)
         video = []
@@ -225,29 +149,29 @@ def cmumosei_data_embedding(opts):
             video.append(np.array(img))
             img.close()
         
-        #获取label
-        label = random.randint(0,7)#使用随机数代替标签
+        #label
+        label = random.randint(0,7)
 
-        audio_second = wave_data.shape[0]/samplerate#语音时长
-        max_audio_second = opts.max_seq_length/opts.audiofeature_persecond#最长的语音时长
+        audio_second = wave_data.shape[0]/samplerate#audio length
+        max_audio_second = opts.max_seq_length/opts.audiofeature_persecond#max audio length
         segment_num = 1
-        #大于语音最大时长需要切分
+        # audio length > max audio length
         if audio_second>max_audio_second:
             segment_num = math.ceil(audio_second/(max_audio_second-1))
             for seg in range(segment_num):
                 print ("seg:",seg)
-                # 提取音频特征
+                # extract audio features
                 a_start = int((seg*(max_audio_second-1))*samplerate)
                 a_end = int(min(wave_data.shape[0],a_start+max_audio_second*samplerate))
                 print("start:",a_start,"end:",a_end) 
-                #小于最短语音时长的舍弃掉
+                # Discard less than the shortest speech duration
                 if a_end-a_start<opts.min_audio_second*samplerate:
                     continue
 
                 audioFeature = audio_Wav2Vec2(opts,wave_data[a_start:a_end])
                 print("audioFeature.shape:",audioFeature.shape)
 
-                # 提取视频特征
+                # extract video feature
                 video_length = len(video)
                 v_start = math.floor(video_length*a_start/wave_data.shape[0])
                 v_end = math.ceil(video_length*a_end/wave_data.shape[0])
@@ -255,7 +179,7 @@ def cmumosei_data_embedding(opts):
                 videoFeature = video_resnet50(opts,video[v_start:v_end])
                 # print("len(videoFeature):",len(videoFeature))
 
-                #保存特征到文件
+                #save feature to_csv
                 audio_file = "audio/"+id+"_"+str(seg)+".npy"
                 video_file = "video/"+id+"_"+str(seg)+".npy"
                 audioFeaturePath = os.path.join(opts.feature_path,audio_file)
@@ -265,20 +189,20 @@ def cmumosei_data_embedding(opts):
 
                 df = pd.DataFrame([[audio_file,video_file,label]])
                 df.to_csv(opts.csv_path,mode="a",index=False, header=False)
-                del df #释放资源，7%,37%
+                del df 
         else :
-                #小于最短语音时长的舍弃掉
+                
                 if wave_data.shape[0]<opts.min_audio_second*samplerate:
                     continue
-                # 提取音频特征
+                
                 audioFeature = audio_Wav2Vec2(opts,wave_data)
                 # print(audioFeature.shape)
 
-                # 提取视频特征
+                
                 videoFeature = video_resnet50(opts,video)
                 # print(len(videoFeature))
 
-                #保存特征到文件
+                
                 audio_file = "audio/"+id+".npy"
                 video_file = "video/"+id+".npy"
                 audioFeaturePath = os.path.join(opts.feature_path,audio_file)
@@ -288,7 +212,7 @@ def cmumosei_data_embedding(opts):
 
                 df = pd.DataFrame([[audio_file,video_file,label]])
                 df.to_csv(opts.csv_path,mode="a",index=False, header=False)
-                del df #释放资源，7%,37%
+                del df 
     print("cmumosei_data_embedding done")
 if __name__=="__main__":
     args = get_args()
@@ -296,7 +220,6 @@ if __name__=="__main__":
     unlabeled_data_csv(args)
 
 
-# 运行命令
 # nohup python -u "/home/lishuai/workspace/UniAV/modules/feature_embedding.py" >feature_embedding.log 2>&1 &
 # 25584
 
