@@ -178,6 +178,7 @@ def unlabeled_audio_data_embedding(opts):
             # load audio wava
             audio_second = librosa.get_duration(filename=audio_path)
             max_audio_second = opts.max_seq_length/opts.audiofeature_persecond#max audio length
+            wave_data, samplerate = librosa.load(audio_path, sr = 16000)
             # audio length > max audio length
             if audio_second>max_audio_second:
                 segment_num = math.ceil(audio_second/(max_audio_second-1))
@@ -192,7 +193,7 @@ def unlabeled_audio_data_embedding(opts):
                         continue
                     
                     # extract audio features
-                    wave_data, samplerate = librosa.load(audio_path, sr = 16000)
+                    
                     a_start = start * samplerate
                     a_end = end * samplerate
                     audioFeature = wav2vec_model(wave_data[a_start:a_end].to(device)).detach().numpy()
