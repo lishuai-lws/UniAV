@@ -36,7 +36,7 @@ def get_args(description='data embedding'):
     parser.add_argument("--cmumosei_video_path",default="/home/lishuai/Dataset/CMU-MOSEI-RAW/processed_data/video/version_img_size_224_img_scale_1.3")
     parser.add_argument("--csv_path",default="/home/lishuai/workspace/data/cmumosei.csv")
     parser.add_argument("--feature_path", default="/home/lishuai/workspace/feature/cmumosei")
-    parser.add_argument("--unlabeled_feature_path", default="/public/home/zwchen209/lishuai/feature/cmumosei")
+    parser.add_argument("--unlabeled_feature_path", default="/public/home/zwchen209/lishuai/feature")
     parser.add_argument("--max_seq_length",default=512,help=" max sequence length for encoder")
     parser.add_argument("--audiofeature_persecond",default=50,help=" wav2vec2.0 per second feature numbers")
     parser.add_argument("--min_audio_second",default=1,help=" min second of audio")
