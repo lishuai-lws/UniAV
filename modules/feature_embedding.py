@@ -195,7 +195,7 @@ def unlabeled_audio_data_embedding(opts):
                     
                     a_start = start * samplerate
                     a_end = end * samplerate
-                    audioFeature = wav2vec_model(wave_data[a_start:a_end]).detach().numpy()
+                    audioFeature = wav2vec_model(wave_data[a_start:a_end]).detach().cpu().numpy()
                     
                     # print("audioFeature.shape:",audioFeature.shape)
 
@@ -224,7 +224,7 @@ def unlabeled_audio_data_embedding(opts):
                         continue
                     # extract audio features
                     # audioFeature = audio_Wav2Vec2(opts,wave_data)
-                    audioFeature = wav2vec_model(wave_data).detach().numpy()
+                    audioFeature = wav2vec_model(wave_data).detach().cpu().numpy()
                     # print(audioFeature.shape)
 
                     # extract video feature
