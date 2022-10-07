@@ -164,7 +164,7 @@ def unlabeled_audio_data_embedding(opts):
     modelpath = opts.wav2vec2_base_960h
     wav2vec_model = AudioWav2Vec2(modelpath, device)
     
-    for file in tqdm(files_list[0:2]):
+    for file in tqdm(files_list):
         if file in check_json:
             print("audio file:", file, "have embedded")
             continue
