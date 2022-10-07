@@ -16,6 +16,7 @@ from PIL import Image
 import math
 # import cv2
 import random
+import json
 from transformers import logging
 
 #warning level 
@@ -39,10 +40,28 @@ def get_args(description='data embedding'):
     parser.add_argument("--min_audio_second",default=1,help=" min second of audio")
     parser.add_argument("--unlabeled_data_path", default="/public/home/zwchen209/Face-Detect-Track-Extract-main/output")
     parser.add_argument("--unlabeled_data_csv_path", default="/public/home/zwchen209/lishuai/data/unlabeled_data.csv")
+    parser.add_argument("--loaded_csv_path",default="/public/home/zwchen209/lishuai/workspace/output/loaded_csv.json")
 
     args = parser.parse_args()
 
     return args
+ # 读取json文件到字典
+
+def load_json(filename: str) -> dict:
+    file = open(filename, 'r', encoding='UTF-8')
+    js = file.read()
+    file.close()
+
+    dic = json.loads(js)
+    return dic
+
+ # 从字典到json
+def save_json(data: dict, filename: str) -> None:
+    js_content = json.dumps(data, ensure_ascii=False, indent=4, sort_keys=False)
+    file = open(filename, 'w', encoding='UTF-8')
+    file.write(js_content)
+    file.close()
+
 def unlabeled_data_csv(opts):
     data_path = opts.unlabeled_data_path
     csv_path = opts.unlabeled_data_csv_path
@@ -51,6 +70,90 @@ def unlabeled_data_csv(opts):
     files_list = os.listdir(audios_path)
     df = pd.DataFrame(columns=["audio_feature","video_feature"])
     df.to_csv(csv_path,index=False)
+    check_json = load_json(opts.loaded_csv_path)
+    
+    for file in tqdm(files_list):
+        if file in check_json:
+            print(file,"have loaded csv")
+            continue
+        file_path = os.path.join(audios_path, file)
+        audios_list = os.listdir(file_path)
+        for audio in audios_list:
+            id  = file + "_" + audio[:-4]
+            # print("id:", id)
+            audio_path = os.path.join(file_path, audio)
+            # load audio wava
+            audio_second = librosa.get_duration(filename=audio_path)
+            max_audio_second = opts.max_seq_length/opts.audiofeature_persecond#max audio length
+            # audio length > max audio length
+            if audio_second>max_audio_second:
+                segment_num = math.ceil(audio_second/(max_audio_second-1))
+                for seg in range(segment_num):
+                    # print ("seg:",seg)
+                    # extract audio features
+                    a_start = seg*(max_audio_second-1)
+                    a_end = min(audio_second,a_start+max_audio_second)
+                    # print("start:",a_start,"end:",a_end) 
+                    #Discard less than the shortest speech duration
+                    if a_end-a_start<opts.min_audio_second:
+                        continue
+
+                    # audioFeature = audio_Wav2Vec2(opts,wave_data[a_start:a_end])
+                    # print("audioFeature.shape:",audioFeature.shape)
+
+                    # extract video feature
+                    # video_length = len(video)
+                    # v_start = math.floor(video_length*a_start/wave_data.shape[0])
+                    # v_end = math.ceil(video_length*a_end/wave_data.shape[0])
+                    # print("v_start:",v_start,"v_end:",v_end)
+                    # videoFeature = video_resnet50(opts,video[v_start:v_end])
+                    # print("len(videoFeature):",len(videoFeature))
+
+                    #save feature to_csv
+                    audio_file = "audio/"+id+"_"+str(seg)+".npy"
+                    video_file = "video/"+id+"_"+str(seg)+".npy"
+                    # audioFeaturePath = os.path.join(opts.feature_path,audio_file)
+                    # videoFeaturePath = os.path.join(opts.feature_path,video_file)
+                    # np.save(audioFeaturePath,audioFeature)
+                    # np.save(videoFeaturePath,videoFeature)
+
+                    df = pd.DataFrame([[audio_file,video_file]])
+                    df.to_csv(csv_path,mode="a",index=False, header=False)
+                    del df 
+            else :
+                    #Discard less than the shortest speech duration
+                    if audio_second<opts.min_audio_second:
+                        continue
+                    # extract audio features
+                    # audioFeature = audio_Wav2Vec2(opts,wave_data)
+                    # print(audioFeature.shape)
+
+                    # extract video feature
+                    # videoFeature = video_resnet50(opts,video)
+                    # print(len(videoFeature))
+
+                    #save feature to_csv
+                    audio_file = "audio/"+id+".npy"
+                    video_file = "video/"+id+".npy"
+                    # audioFeaturePath = os.path.join(opts.feature_path,audio_file)
+                    # videoFeaturePath = os.path.join(opts.feature_path,video_file)
+                    # np.save(audioFeaturePath,audioFeature)
+                    # np.save(videoFeaturePath,videoFeature)
+
+                    # df = pd.DataFrame([[audio_file,video_file,label]])
+                    df = pd.DataFrame([[audio_file,video_file]])
+                    df.to_csv(csv_path,mode="a",index=False, header=False)
+                    del df 
+        check_json[file] = 1
+        save_json(check_json, opts.loaded_csv_path)
+
+
+def unlabeled_audio_data(opts):
+    data_path = opts.unlabeled_data_path
+    csv_path = opts.unlabeled_data_csv_path
+    audios_path = os.path.join(data_path, "audio")
+    videos_path = os.path.join(data_path, "images")
+    files_list = os.listdir(audios_path)
     for file in tqdm(files_list):
         file_path = os.path.join(audios_path, file)
         audios_list = os.listdir(file_path)
@@ -221,5 +324,6 @@ if __name__=="__main__":
 
 
 # nohup python -u "/home/lishuai/workspace/UniAV/modules/feature_embedding.py" >feature_embedding.log 2>&1 &
+# nohup python -u "/public/home/zwchen209/lishuai/UniAV/modules/feature_embedding.py" >unlabeled_data_feature_embedding.log 2>&1 &
 # 25584
 
