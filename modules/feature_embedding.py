@@ -6,7 +6,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
 
 
-from modules.module_embedding import audio_Wav2Vec2, video_resnet50
+from modules.module_embedding import AudioWav2Vec2, ResNet50
 import argparse
 import librosa
 import os
@@ -18,6 +18,7 @@ import math
 import random
 import json
 from transformers import logging
+import torch
 
 #warning level 
 logging.set_verbosity_error()
@@ -41,6 +42,7 @@ def get_args(description='data embedding'):
     parser.add_argument("--unlabeled_data_path", default="/public/home/zwchen209/Face-Detect-Track-Extract-main/output")
     parser.add_argument("--unlabeled_data_csv_path", default="/public/home/zwchen209/lishuai/data/unlabeled_data.csv")
     parser.add_argument("--loaded_csv_path",default="/public/home/zwchen209/lishuai/output/loaded_csv.json")
+    parser.add_argument("--embedded_audio_json_path",default="/public/home/zwchen209/lishuai/output/embedded_audio.json")
 
     args = parser.parse_args()
 
@@ -148,36 +150,51 @@ def unlabeled_data_csv(opts):
         save_json(check_json, opts.loaded_csv_path)
 
 
-def unlabeled_audio_data(opts):
+def unlabeled_audio_data_embedding(opts):
     data_path = opts.unlabeled_data_path
-    csv_path = opts.unlabeled_data_csv_path
     audios_path = os.path.join(data_path, "audio")
     videos_path = os.path.join(data_path, "images")
     files_list = os.listdir(audios_path)
-    for file in tqdm(files_list):
+    json_path = opts.embedded_audio_json_path
+    check_json = load_json(json_path)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #load modal
+    modelpath = opts.wav2vec2_base_960h
+    wav2vec_model = AudioWav2Vec2(modelpath)
+    wav2vec_model.to(device)
+    
+    for file in tqdm(files_list[0:2]):
+        if file in check_json:
+            print("audio file:", file, "have embedded")
+            continue
         file_path = os.path.join(audios_path, file)
         audios_list = os.listdir(file_path)
-        for audio in tqdm(audios_list):
+        for audio in audios_list:
             id  = file + "_" + audio[:-4]
+            # print("id:", id)
             audio_path = os.path.join(file_path, audio)
             # load audio wava
-            wave_data, samplerate = librosa.load(audio_path, sr=16000)
-            audio_second = wave_data.shape[0]/samplerate#audio length
+            audio_second = librosa.get_duration(filename=audio_path)
             max_audio_second = opts.max_seq_length/opts.audiofeature_persecond#max audio length
             # audio length > max audio length
             if audio_second>max_audio_second:
                 segment_num = math.ceil(audio_second/(max_audio_second-1))
                 for seg in range(segment_num):
                     # print ("seg:",seg)
-                    # extract audio features
-                    a_start = int((seg*(max_audio_second-1))*samplerate)
-                    a_end = int(min(wave_data.shape[0],a_start+max_audio_second*samplerate))
+                    
+                    start = seg*(max_audio_second-1)
+                    end = min(audio_second,start + max_audio_second)
                     # print("start:",a_start,"end:",a_end) 
                     #Discard less than the shortest speech duration
-                    if a_end-a_start<opts.min_audio_second*samplerate:
+                    if end - start < opts.min_audio_second:
                         continue
-
-                    # audioFeature = audio_Wav2Vec2(opts,wave_data[a_start:a_end])
+                    
+                    # extract audio features
+                    wave_data, samplerate = librosa.load(audio_path, sr = 16000)
+                    a_start = start * samplerate
+                    a_end = end * samplerate
+                    audioFeature = wav2vec_model(wave_data[a_start:a_end].to(device)).detach().numpy()
+                    
                     # print("audioFeature.shape:",audioFeature.shape)
 
                     # extract video feature
@@ -191,20 +208,21 @@ def unlabeled_audio_data(opts):
                     #save feature to_csv
                     audio_file = "audio/"+id+"_"+str(seg)+".npy"
                     video_file = "video/"+id+"_"+str(seg)+".npy"
-                    # audioFeaturePath = os.path.join(opts.feature_path,audio_file)
+                    audioFeaturePath = os.path.join(opts.feature_path,audio_file)
                     # videoFeaturePath = os.path.join(opts.feature_path,video_file)
-                    # np.save(audioFeaturePath,audioFeature)
+                    np.save(audioFeaturePath,audioFeature)
                     # np.save(videoFeaturePath,videoFeature)
 
-                    df = pd.DataFrame([[audio_file,video_file]])
-                    df.to_csv(csv_path,mode="a",index=False, header=False)
-                    del df 
+                    # df = pd.DataFrame([[audio_file,video_file]])
+                    # df.to_csv(csv_path,mode="a",index=False, header=False)
+                    # del df 
             else :
                     #Discard less than the shortest speech duration
-                    if wave_data.shape[0]<opts.min_audio_second*samplerate:
+                    if audio_second<opts.min_audio_second:
                         continue
                     # extract audio features
                     # audioFeature = audio_Wav2Vec2(opts,wave_data)
+                    audioFeature = wav2vec_model(wave_data.to(device)).detach().numpy()
                     # print(audioFeature.shape)
 
                     # extract video feature
@@ -213,17 +231,14 @@ def unlabeled_audio_data(opts):
 
                     #save feature to_csv
                     audio_file = "audio/"+id+".npy"
-                    video_file = "video/"+id+".npy"
-                    # audioFeaturePath = os.path.join(opts.feature_path,audio_file)
+                    # video_file = "video/"+id+".npy"
+                    audioFeaturePath = os.path.join(opts.feature_path,audio_file)
                     # videoFeaturePath = os.path.join(opts.feature_path,video_file)
-                    # np.save(audioFeaturePath,audioFeature)
+                    np.save(audioFeaturePath,audioFeature)
                     # np.save(videoFeaturePath,videoFeature)
 
-                    # df = pd.DataFrame([[audio_file,video_file,label]])
-                    df = pd.DataFrame([[audio_file,video_file]])
-                    df.to_csv(csv_path,mode="a",index=False, header=False)
-                    del df 
-
+        check_json[file] = 1
+        save_json(check_json, json_path)
 
 
 def cmumosei_data_embedding(opts):

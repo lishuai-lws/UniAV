@@ -35,9 +35,10 @@ class ResNet50(nn.Module):
         return feature
 
 
-def audio_Wav2Vec2(opts, wavdata):
+def audio_Wav2Vec2(opts, wavdata, device):
     modelpath = opts.wav2vec2_base_960h
     wav2vec_model = AudioWav2Vec2(modelpath)
+    wav2vec_model.to(device)
     feature = wav2vec_model(wavdata).detach().numpy()
     return feature
 def video_resnet50(opts, images):
