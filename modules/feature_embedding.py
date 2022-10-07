@@ -40,7 +40,7 @@ def get_args(description='data embedding'):
     parser.add_argument("--min_audio_second",default=1,help=" min second of audio")
     parser.add_argument("--unlabeled_data_path", default="/public/home/zwchen209/Face-Detect-Track-Extract-main/output")
     parser.add_argument("--unlabeled_data_csv_path", default="/public/home/zwchen209/lishuai/data/unlabeled_data.csv")
-    parser.add_argument("--loaded_csv_path",default="/public/home/zwchen209/lishuai/workspace/output/loaded_csv.json")
+    parser.add_argument("--loaded_csv_path",default="/public/home/zwchen209/lishuai/output/loaded_csv.json")
 
     args = parser.parse_args()
 
@@ -324,6 +324,6 @@ if __name__=="__main__":
 
 
 # nohup python -u "/home/lishuai/workspace/UniAV/modules/feature_embedding.py" >feature_embedding.log 2>&1 &
-# nohup python -u "/public/home/zwchen209/lishuai/UniAV/modules/feature_embedding.py" >unlabeled_data_feature_embedding.log 2>&1 &
+# nohup python -u "/public/home/zwchen209/lishuai/UniAV/modules/feature_embedding.py" >output/unlabeled_data_feature_csv.log 2>&1 &
 # 25584
 
