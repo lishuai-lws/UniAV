@@ -29,13 +29,14 @@ from tqdm import tqdm
 
 def get_args(description='data embedding'):
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("--wav2vec2_base_960h", default="/home/lishuai/pretrainedmodel/wav2vec2-base-960h", help="pretrained wav2vect2.0 path")
+    parser.add_argument("--wav2vec2_base_960h", default="/public/home/zwchen209/lishuai/pretrainedmodel/wav2vec2-base-960h", help="pretrained wav2vect2.0 path")
     parser.add_argument("--resnet50", default="/home/lishuai/pretrainedmodel/resnet-50", help="pretrained resnet50 path")
     parser.add_argument("--cmumosei_ids_path",default="/home/lishuai/Dataset/CMU-MOSEI-RAW/processed_data/ids.csv")
     parser.add_argument("--cmumosei_audio_path",default="/home/lishuai/Dataset/CMU-MOSEI-RAW/processed_data/audio/WAV_fromVideo")
     parser.add_argument("--cmumosei_video_path",default="/home/lishuai/Dataset/CMU-MOSEI-RAW/processed_data/video/version_img_size_224_img_scale_1.3")
     parser.add_argument("--csv_path",default="/home/lishuai/workspace/data/cmumosei.csv")
     parser.add_argument("--feature_path", default="/home/lishuai/workspace/feature/cmumosei")
+    parser.add_argument("--unlabeled_feature_path", default="/public/home/zwchen209/lishuai/feature/cmumosei")
     parser.add_argument("--max_seq_length",default=512,help=" max sequence length for encoder")
     parser.add_argument("--audiofeature_persecond",default=50,help=" wav2vec2.0 per second feature numbers")
     parser.add_argument("--min_audio_second",default=1,help=" min second of audio")
@@ -154,6 +155,7 @@ def unlabeled_audio_data_embedding(opts):
     data_path = opts.unlabeled_data_path
     audios_path = os.path.join(data_path, "audio")
     videos_path = os.path.join(data_path, "images")
+    feature_path = opts.unlabeled_feature_path
     files_list = os.listdir(audios_path)
     json_path = opts.embedded_audio_json_path
     check_json = load_json(json_path)
@@ -208,7 +210,7 @@ def unlabeled_audio_data_embedding(opts):
                     #save feature to_csv
                     audio_file = "audio/"+id+"_"+str(seg)+".npy"
                     video_file = "video/"+id+"_"+str(seg)+".npy"
-                    audioFeaturePath = os.path.join(opts.feature_path,audio_file)
+                    audioFeaturePath = os.path.join(feature_path,audio_file)
                     # videoFeaturePath = os.path.join(opts.feature_path,video_file)
                     np.save(audioFeaturePath,audioFeature)
                     # np.save(videoFeaturePath,videoFeature)
@@ -232,7 +234,7 @@ def unlabeled_audio_data_embedding(opts):
                     #save feature to_csv
                     audio_file = "audio/"+id+".npy"
                     # video_file = "video/"+id+".npy"
-                    audioFeaturePath = os.path.join(opts.feature_path,audio_file)
+                    audioFeaturePath = os.path.join(feature_path,audio_file)
                     # videoFeaturePath = os.path.join(opts.feature_path,video_file)
                     np.save(audioFeaturePath,audioFeature)
                     # np.save(videoFeaturePath,videoFeature)
@@ -340,6 +342,6 @@ if __name__=="__main__":
 
 
 # nohup python -u "/home/lishuai/workspace/UniAV/modules/feature_embedding.py" >feature_embedding.log 2>&1 &
-# nohup python -u "/public/home/zwchen209/lishuai/UniAV/modules/feature_embedding.py" >output/unlabeled_data_feature_csv.log 2>&1 &
+# nohup python -u "/public/home/zwchen209/lishuai/UniAV/modules/feature_embedding.py" >output/unlabeled_audio_data_embedding.log 2>&1 &
 # 25584
 
