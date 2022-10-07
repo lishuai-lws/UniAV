@@ -193,8 +193,8 @@ def unlabeled_audio_data_embedding(opts):
                     
                     # extract audio features
                     
-                    a_start = start * samplerate
-                    a_end = end * samplerate
+                    a_start = int(start * samplerate)
+                    a_end = int(end * samplerate)
                     audioFeature = wav2vec_model(wave_data[a_start:a_end]).detach().cpu().numpy()
                     
                     # print("audioFeature.shape:",audioFeature.shape)
