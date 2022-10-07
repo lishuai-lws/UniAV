@@ -335,7 +335,8 @@ def cmumosei_data_embedding(opts):
 if __name__=="__main__":
     args = get_args()
     # cmumosei_data_embedding(args)
-    unlabeled_data_csv(args)
+    # unlabeled_data_csv(args)
+    unlabeled_audio_data_embedding(args)
 
 
 # nohup python -u "/home/lishuai/workspace/UniAV/modules/feature_embedding.py" >feature_embedding.log 2>&1 &
