@@ -9,14 +9,16 @@ logging.set_verbosity_warning()
 
 
 class AudioWav2Vec2(nn.Module):
-    def __init__(self,modelpath):
+    def __init__(self,modelpath, device):
         super().__init__()
+        self.device = device
         self.tokenizer = Wav2Vec2Processor.from_pretrained(modelpath,padding=True)
-        self.model = Wav2Vec2Model.from_pretrained(modelpath)
+        self.model = Wav2Vec2Model.from_pretrained(modelpath).to(self.device)
+        
 
     def forward(self, wavdata):
         data = self.tokenizer(wavdata, return_tensors="pt",sampling_rate=16000, padding="longest").input_values
-        feature = self.model(data).last_hidden_state
+        feature = self.model(data.to(self.device)).last_hidden_state
         #[1, 665, 768]
         feature = torch.squeeze(feature)# [665,768]
         return feature

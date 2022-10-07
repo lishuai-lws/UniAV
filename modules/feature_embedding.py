@@ -162,8 +162,7 @@ def unlabeled_audio_data_embedding(opts):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     #load modal
     modelpath = opts.wav2vec2_base_960h
-    wav2vec_model = AudioWav2Vec2(modelpath)
-    wav2vec_model.to(device)
+    wav2vec_model = AudioWav2Vec2(modelpath, device)
     
     for file in tqdm(files_list[0:2]):
         if file in check_json:
@@ -196,7 +195,7 @@ def unlabeled_audio_data_embedding(opts):
                     
                     a_start = start * samplerate
                     a_end = end * samplerate
-                    audioFeature = wav2vec_model(wave_data[a_start:a_end].to(device)).detach().numpy()
+                    audioFeature = wav2vec_model(wave_data[a_start:a_end]).detach().numpy()
                     
                     # print("audioFeature.shape:",audioFeature.shape)
 
@@ -225,7 +224,7 @@ def unlabeled_audio_data_embedding(opts):
                         continue
                     # extract audio features
                     # audioFeature = audio_Wav2Vec2(opts,wave_data)
-                    audioFeature = wav2vec_model(wave_data.to(device)).detach().numpy()
+                    audioFeature = wav2vec_model(wave_data).detach().numpy()
                     # print(audioFeature.shape)
 
                     # extract video feature
