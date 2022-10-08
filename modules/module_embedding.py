@@ -24,14 +24,15 @@ class AudioWav2Vec2(nn.Module):
         return feature
 
 class ResNet50(nn.Module):
-    def __init__(self, modelpath):
+    def __init__(self, modelpath, device):
         super().__init__()
+        self.device = device
         self.feature_extractor = AutoFeatureExtractor.from_pretrained(modelpath)
-        self.model = ResNetModel.from_pretrained(modelpath)
+        self.model = ResNetModel.from_pretrained(modelpath).to(self.device)
 
     def forward(self, image):
         inputs = self.feature_extractor(image, return_tensors="pt")
-        feature = self.model(**inputs).pooler_output
+        feature = self.model(**inputs.to(self.device)).pooler_output
         #[1,2048,1,1]->[2048]
         feature = torch.squeeze(feature)
         return feature
