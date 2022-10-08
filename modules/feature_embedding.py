@@ -58,7 +58,6 @@ def get_args(description='data embedding'):
 
 
 # 读取json文件到字典
-
 def load_json(filename: str) -> dict:
     file = open(filename, 'r', encoding='UTF-8')
     js = file.read()
@@ -67,14 +66,12 @@ def load_json(filename: str) -> dict:
     dic = json.loads(js)
     return dic
 
-
 # 从字典到json
 def save_json(data: dict, filename: str) -> None:
     js_content = json.dumps(data, ensure_ascii=False, indent=4, sort_keys=False)
     file = open(filename, 'w', encoding='UTF-8')
     file.write(js_content)
     file.close()
-
 
 def unlabeled_data_csv(opts):
     data_path = opts.unlabeled_data_path
@@ -160,7 +157,6 @@ def unlabeled_data_csv(opts):
                 del df
         check_json[file] = 1
         save_json(check_json, opts.loaded_csv_path)
-
 
 def unlabeled_audio_data_embedding(opts):
     data_path = opts.unlabeled_data_path
@@ -301,54 +297,36 @@ def unlabeled_visual_data_embedding(opts):
                     if end - start < opts.min_audio_second:
                         continue
 
-                    # extract audio features
-
-                    # a_start = int(start * samplerate)
-                    # a_end = int(end * samplerate)
-                    # audioFeature = wav2vec_model(wave_data[a_start:a_end]).detach().cpu().numpy()
-
-                    # print("audioFeature.shape:",audioFeature.shape)
-
                     # extract video feature
                     video_length = len(video)
                     v_start = math.floor(video_length * start/audio_second)
                     v_end = math.ceil(video_length * end/audio_second)
-                    print("v_start:",v_start,"v_end:",v_end)
+                    # print("v_start:",v_start,"v_end:",v_end)
                     # todo: for
-                    videoFeature = resnet50_model(opts,video[v_start:v_end]).detach().cpu().numpy()
+                    videoFeature = []
+                    for i in video[v_start:v_end] :
+                         videoFeature.append(resnet50_model(i).detach().cpu().numpy())
                     # print("len(videoFeature):",len(videoFeature))
 
                     # save feature to_csv
-                    audio_file = "audio/" + id + "_" + str(seg) + ".npy"
                     video_file = "video/" + id + "_" + str(seg) + ".npy"
-                    audioFeaturePath = os.path.join(feature_path, audio_file)
-                    # videoFeaturePath = os.path.join(opts.feature_path,video_file)
-                    np.save(audioFeaturePath, audioFeature)
-                    # np.save(videoFeaturePath,videoFeature)
-
-                    # df = pd.DataFrame([[audio_file,video_file]])
-                    # df.to_csv(csv_path,mode="a",index=False, header=False)
-                    # del df
+                    videoFeaturePath = os.path.join(feature_path,video_file)
+                    np.save(videoFeaturePath,videoFeature)
             else:
                 # Discard less than the shortest speech duration
                 if audio_second < opts.min_audio_second:
                     continue
-                # extract audio features
-                # audioFeature = audio_Wav2Vec2(opts,wave_data)
-                audioFeature = wav2vec_model(wave_data).detach().cpu().numpy()
-                # print(audioFeature.shape)
 
                 # extract video feature
-                # videoFeature = video_resnet50(opts,video)
+                videoFeature = []
+                for i in video:
+                    videoFeature.append(resnet50_model(i).detach().cpu().numpy())
                 # print(len(videoFeature))
 
                 # save feature to_csv
-                audio_file = "audio/" + id + ".npy"
-                # video_file = "video/"+id+".npy"
-                audioFeaturePath = os.path.join(feature_path, audio_file)
-                # videoFeaturePath = os.path.join(opts.feature_path,video_file)
-                np.save(audioFeaturePath, audioFeature)
-                # np.save(videoFeaturePath,videoFeature)
+                video_file = "video/"+id+".npy"
+                videoFeaturePath = os.path.join(feature_path,video_file)
+                np.save(videoFeaturePath,videoFeature)
 
         check_json[file] = 1
         save_json(check_json, json_path)
@@ -449,7 +427,8 @@ if __name__ == "__main__":
     args = get_args()
     # cmumosei_data_embedding(args)
     # unlabeled_data_csv(args)
-    unlabeled_audio_data_embedding(args)
+    # unlabeled_audio_data_embedding(args)
+    unlabeled_visual_data_embedding(args)
 
 # nohup python -u "/home/lishuai/workspace/UniAV/modules/feature_embedding.py" >feature_embedding.log 2>&1 &
 # nohup python -u "/public/home/zwchen209/lishuai/UniAV/modules/feature_embedding.py" >output/unlabeled_audio_data_embedding.log 2>&1 &
