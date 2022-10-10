@@ -128,7 +128,7 @@ class CBAMResNet_IR(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-        x = self.output_layer(x)
+        # x = self.output_layer(x)
 
         return x
 
@@ -241,11 +241,11 @@ class Resnet50(nn.Module):
 
         self.output.weight = xavier_uniform_(self.output.weight)
         self.output.bias = constant_(self.output.bias, 0)
-
+        self.Flatten = Flatten()
 
     def forward(self, x):
         x = self.backbone(x)
-
+        x = self.Flatten(x)
         # return x
         # x = self.output(x)
         return x

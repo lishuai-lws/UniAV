@@ -6,7 +6,7 @@ import sys
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
 
-from modules.module_embedding import AudioWav2Vec2, ResNet50
+from modules.module_embedding import AudioWav2Vec2, Resnet50
 import argparse
 import librosa
 import os
@@ -20,6 +20,7 @@ import json
 from transformers import logging
 import torch
 from tqdm import tqdm
+import torchvision.transforms as transforms
 
 # warning level
 logging.set_verbosity_error()
@@ -249,6 +250,21 @@ def unlabeled_audio_data_embedding(opts):
         check_json[file] = 1
         save_json(check_json, json_path)
 
+def image_tranforms(image,opts):
+    normalize = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+    color_jitter = transforms.ColorJitter(0.2, 0.2, 0.2, 0.05)
+    transform = transforms.Compose([
+        transforms.RandomApply([color_jitter], p=0.8),
+        transforms.Grayscale(num_output_channels=3),
+        transforms.RandomRotation((8, 8), Image.BILINEAR),
+        transforms.RandomResizedCrop(size=opts.crop_size, scale=(0.08, 1.0), ratio=(1., 1.)),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        normalize
+    ])
+    image = transform(image)
+    return image
+
 def unlabeled_visual_data_embedding(opts):
     data_path = opts.unlabeled_data_path
     audios_path = os.path.join(data_path, "audio")
@@ -260,10 +276,9 @@ def unlabeled_visual_data_embedding(opts):
     check_json = load_json(json_path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # load modal
-    modelpath = opts.resnet50
-    resnet50_model = ResNet50(modelpath, device)
+    resnet50_model = Resnet50(opts)
 
-    for file in tqdm(files_list):
+    for file in tqdm(files_list[:10]):
         if file in check_json:
             print("visual file:", file, "have embedded")
             continue
@@ -279,11 +294,6 @@ def unlabeled_visual_data_embedding(opts):
             audio_second = librosa.get_duration(filename=audio_path)
             max_audio_second = opts.max_seq_length / opts.audiofeature_persecond  # max audio length
             images_list = os.listdir(video_path)
-            video = []
-            for image in images_list:
-                img = Image.open(os.path.join(video_path,image))
-                video.append(np.array(img))
-                img.close()
             # audio length > max audio length
             if audio_second > max_audio_second:
                 segment_num = math.ceil(audio_second / (max_audio_second - 1))
@@ -298,19 +308,22 @@ def unlabeled_visual_data_embedding(opts):
                         continue
 
                     # extract video feature
-                    video_length = len(video)
-                    v_start = math.floor(video_length * start/audio_second)
-                    v_end = math.ceil(video_length * end/audio_second)
+                    images_length = len(images_list)
+                    v_start = math.floor(images_length * start/audio_second)
+                    v_end = math.ceil(images_length * end/audio_second)
                     # print("v_start:",v_start,"v_end:",v_end)
-                    # todo: for
                     videoFeature = []
-                    for i in video[v_start:v_end] :
-                         videoFeature.append(resnet50_model(i).detach().cpu().numpy())
+                    for image in images_list[v_start:v_end] :
+                        img = Image.open(os.path.join(video_path, image))
+                        i = image_tranforms(img,opts).to(device)
+                        img.close()
+                        videoFeature.append(resnet50_model(i).detach().cpu().numpy())
                     # print("len(videoFeature):",len(videoFeature))
 
                     # save feature to_csv
                     video_file = "video/" + id + "_" + str(seg) + ".npy"
                     videoFeaturePath = os.path.join(feature_path,video_file)
+                    videoFeature = np.array(videoFeature)
                     np.save(videoFeaturePath,videoFeature)
             else:
                 # Discard less than the shortest speech duration
@@ -319,17 +332,21 @@ def unlabeled_visual_data_embedding(opts):
 
                 # extract video feature
                 videoFeature = []
-                for i in video:
+                for image in images_list:
+                    img = Image.open(os.path.join(video_path, image))
+                    i = image_tranforms(img, opts).to(device)
+                    img.close()
                     videoFeature.append(resnet50_model(i).detach().cpu().numpy())
                 # print(len(videoFeature))
 
                 # save feature to_csv
                 video_file = "video/"+id+".npy"
                 videoFeaturePath = os.path.join(feature_path,video_file)
+                videoFeature = np.array(videoFeature)
                 np.save(videoFeaturePath,videoFeature)
 
-        check_json[file] = 1
-        save_json(check_json, json_path)
+#         check_json[file] = 1
+#         save_json(check_json, json_path)
 
 
 def cmumosei_data_embedding(opts):
