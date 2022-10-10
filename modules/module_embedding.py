@@ -247,7 +247,7 @@ class Resnet50(nn.Module):
         x = self.backbone(x)
 
         # return x
-        x = self.output(x)
+        # x = self.output(x)
         return x
 
 
@@ -260,7 +260,7 @@ def audio_Wav2Vec2(opts, wavdata, device):
     return feature
 def video_resnet50(opts, images):
     modelpath = opts.resnet50
-    resnet50_model = ResNet50(modelpath)
+    resnet50_model = Resnet50(modelpath)
     features = []
     for image in images:
         feature = resnet50_model(image).detach().numpy()
