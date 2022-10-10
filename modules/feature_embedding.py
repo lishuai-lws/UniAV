@@ -339,7 +339,8 @@ def unlabeled_visual_data_embedding(opts):
                     i = image_tranforms(img, opts).to(device)
                     i = i.unsqueeze(0)
                     img.close()
-                    videoFeature.append(resnet50_model(i).detach().cpu().numpy())
+                    imageFeature = resnet50_model(i).detach().cpu().numpy()
+                    videoFeature.append(imageFeature.reshape(-1))
                 # print(len(videoFeature))
 
                 # save feature to_csv
