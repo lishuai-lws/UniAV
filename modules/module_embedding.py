@@ -245,7 +245,7 @@ class Resnet50(nn.Module):
 
     def forward(self, x):
         x = self.backbone(x)
-        x = self.Flatten(x)
+        # x = self.Flatten(x)
         # return x
         # x = self.output(x)
         return x

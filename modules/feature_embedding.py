@@ -265,6 +265,7 @@ def image_tranforms(image,opts):
     image = transform(image)
     return image
 
+
 def unlabeled_visual_data_embedding(opts):
     data_path = opts.unlabeled_data_path
     audios_path = os.path.join(data_path, "audio")
@@ -276,9 +277,9 @@ def unlabeled_visual_data_embedding(opts):
     check_json = load_json(json_path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # load modal
-    resnet50_model = Resnet50(opts)
+    resnet50_model = Resnet50(opts).to(device)
 
-    for file in tqdm(files_list[:10]):
+    for file in tqdm(files_list):
         if file in check_json:
             print("visual file:", file, "have embedded")
             continue
@@ -309,22 +310,23 @@ def unlabeled_visual_data_embedding(opts):
 
                     # extract video feature
                     images_length = len(images_list)
-                    v_start = math.floor(images_length * start/audio_second)
-                    v_end = math.ceil(images_length * end/audio_second)
+                    v_start = math.floor(images_length * start / audio_second)
+                    v_end = math.ceil(images_length * end / audio_second)
                     # print("v_start:",v_start,"v_end:",v_end)
                     videoFeature = []
-                    for image in images_list[v_start:v_end] :
+                    for image in images_list[v_start:v_end]:
                         img = Image.open(os.path.join(video_path, image))
-                        i = image_tranforms(img,opts).to(device)
+                        i = image_tranforms(img, opts).to(device)
+                        i = i.unsqueeze(0)
                         img.close()
                         videoFeature.append(resnet50_model(i).detach().cpu().numpy())
                     # print("len(videoFeature):",len(videoFeature))
 
                     # save feature to_csv
                     video_file = "video/" + id + "_" + str(seg) + ".npy"
-                    videoFeaturePath = os.path.join(feature_path,video_file)
+                    videoFeaturePath = os.path.join(feature_path, video_file)
                     videoFeature = np.array(videoFeature)
-                    np.save(videoFeaturePath,videoFeature)
+                    np.save(videoFeaturePath, videoFeature)
             else:
                 # Discard less than the shortest speech duration
                 if audio_second < opts.min_audio_second:
@@ -335,15 +337,16 @@ def unlabeled_visual_data_embedding(opts):
                 for image in images_list:
                     img = Image.open(os.path.join(video_path, image))
                     i = image_tranforms(img, opts).to(device)
+                    i = i.unsqueeze(0)
                     img.close()
                     videoFeature.append(resnet50_model(i).detach().cpu().numpy())
                 # print(len(videoFeature))
 
                 # save feature to_csv
-                video_file = "video/"+id+".npy"
-                videoFeaturePath = os.path.join(feature_path,video_file)
+                video_file = "video/" + id + ".npy"
+                videoFeaturePath = os.path.join(feature_path, video_file)
                 videoFeature = np.array(videoFeature)
-                np.save(videoFeaturePath,videoFeature)
+                np.save(videoFeaturePath, videoFeature)
 
 #         check_json[file] = 1
 #         save_json(check_json, json_path)
