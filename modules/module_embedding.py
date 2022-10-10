@@ -241,11 +241,13 @@ class Resnet50(nn.Module):
 
         self.output.weight = xavier_uniform_(self.output.weight)
         self.output.bias = constant_(self.output.bias, 0)
-        self.Flatten = Flatten()
+        self.pooler = nn.AdaptiveAvgPool2d((1,1))
+        self.flatten = Flatten()
 
     def forward(self, x):
         x = self.backbone(x)
-        # x = self.Flatten(x)
+        x = self.pooler(x)
+        x = self.flatten(x)
         # return x
         # x = self.output(x)
         return x
