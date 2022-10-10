@@ -1,6 +1,6 @@
 from torch import nn
 from transformers import Wav2Vec2Processor, Wav2Vec2Model
-from transformers import AutoFeatureExtractor, ResNetModel, ResNetForImageClassification
+# from transformers import AutoFeatureExtractor, ResNetModel, ResNetForImageClassification
 import torch
 from transformers import logging
 from torch.nn.init import xavier_uniform_, constant_
