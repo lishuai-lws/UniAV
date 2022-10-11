@@ -26,14 +26,15 @@ import torchvision.transforms as transforms
 logging.set_verbosity_error()
 
 
-
 def get_args(description='data embedding'):
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--wav2vec2_base_960h",
                         default="/public/home/zwchen209/lishuai/pretrainedmodel/wav2vec2-base-960h",
                         help="pretrained wav2vect2.0 path")
-    parser.add_argument("--resnet50", default="/home/lishuai/pretrainedmodel/resnet-50",
+    parser.add_argument("--resnet50", default="/public/home/zwchen209/lishuai/pretrainedmodel/resnet50",
                         help="pretrained resnet50 path")
+    parser.add_argument("--pretrain_backbone", default="../pretrainedmodel/resnet50/backbone_resnet50.pth")
+    parser.add_argument("--spatial_size", type=int, default=5)
     parser.add_argument("--cmumosei_ids_path", default="/home/lishuai/Dataset/CMU-MOSEI-RAW/processed_data/ids.csv")
     parser.add_argument("--cmumosei_audio_path",
                         default="/home/lishuai/Dataset/CMU-MOSEI-RAW/processed_data/audio/WAV_fromVideo")
@@ -52,6 +53,10 @@ def get_args(description='data embedding'):
                         default="/public/home/zwchen209/lishuai/output/embedded_audio.json")
     parser.add_argument("--embedded_visual_json_path",
                         default="/public/home/zwchen209/lishuai/output/embedded_visual.json")
+    parser.add_argument('--num_classes', type=int, default=7)
+    parser.add_argument('--feature_dim', type=int, default=512)
+    parser.add_argument('--drop_ratio', type=float, default=0.4)
+    parser.add_argument('--crop_size', type=int, default=112)
 
     args = parser.parse_args()
 
@@ -252,13 +257,9 @@ def unlabeled_audio_data_embedding(opts):
 
 def image_tranforms(image,opts):
     normalize = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-    color_jitter = transforms.ColorJitter(0.2, 0.2, 0.2, 0.05)
     transform = transforms.Compose([
-        transforms.RandomApply([color_jitter], p=0.8),
         transforms.Grayscale(num_output_channels=3),
-        transforms.RandomRotation((8, 8), Image.BILINEAR),
-        transforms.RandomResizedCrop(size=opts.crop_size, scale=(0.08, 1.0), ratio=(1., 1.)),
-        transforms.RandomHorizontalFlip(),
+        transforms.Resize(opts.crop_size),
         transforms.ToTensor(),
         normalize
     ])
@@ -319,7 +320,8 @@ def unlabeled_visual_data_embedding(opts):
                         i = image_tranforms(img, opts).to(device)
                         i = i.unsqueeze(0)
                         img.close()
-                        videoFeature.append(resnet50_model(i).detach().cpu().numpy())
+                        imageFeature = resnet50_model(i).detach().cpu().numpy()
+                        videoFeature.append(imageFeature.reshape(-1))
                     # print("len(videoFeature):",len(videoFeature))
 
                     # save feature to_csv
@@ -327,6 +329,7 @@ def unlabeled_visual_data_embedding(opts):
                     videoFeaturePath = os.path.join(feature_path, video_file)
                     videoFeature = np.array(videoFeature)
                     np.save(videoFeaturePath, videoFeature)
+                    print(id, " feature embedded, feature shape:", videoFeature.shape)
             else:
                 # Discard less than the shortest speech duration
                 if audio_second < opts.min_audio_second:
@@ -348,9 +351,10 @@ def unlabeled_visual_data_embedding(opts):
                 videoFeaturePath = os.path.join(feature_path, video_file)
                 videoFeature = np.array(videoFeature)
                 np.save(videoFeaturePath, videoFeature)
+                print(id," feature embedded, feature shape:",videoFeature.shape)
 
-#         check_json[file] = 1
-#         save_json(check_json, json_path)
+        check_json[file] = 1
+        save_json(check_json, json_path)
 
 
 def cmumosei_data_embedding(opts):
@@ -453,4 +457,5 @@ if __name__ == "__main__":
 
 # nohup python -u "/home/lishuai/workspace/UniAV/modules/feature_embedding.py" >feature_embedding.log 2>&1 &
 # nohup python -u "/public/home/zwchen209/lishuai/UniAV/modules/feature_embedding.py" >output/unlabeled_audio_data_embedding.log 2>&1 &
+# nohup python -u "/public/home/zwchen209/lishuai/UniAV/modules/feature_embedding.py" >output/unlabeled_vidoe_data_embedding.log 2>&1 &
 # 25584
