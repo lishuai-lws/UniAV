@@ -33,7 +33,7 @@ def get_args(description='data embedding'):
                         help="pretrained wav2vect2.0 path")
     parser.add_argument("--resnet50", default="/public/home/zwchen209/lishuai/pretrainedmodel/resnet50",
                         help="pretrained resnet50 path")
-    parser.add_argument("--pretrain_backbone", default="../pretrainedmodel/resnet50/backbone_resnet50.pth")
+    parser.add_argument("--pretrain_backbone", default="/public/home/zwchen209/lishuai/pretrainedmodel/resnet50/backbone_resnet50.pth")
     parser.add_argument("--spatial_size", type=int, default=5)
     parser.add_argument("--cmumosei_ids_path", default="/home/lishuai/Dataset/CMU-MOSEI-RAW/processed_data/ids.csv")
     parser.add_argument("--cmumosei_audio_path",
