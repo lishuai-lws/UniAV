@@ -276,7 +276,7 @@ def unlabeled_visual_data_embedding(opts):
     files_list = os.listdir(audios_path)
     json_path = opts.embedded_visual_json_path
     check_json = load_json(json_path)
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # load modal
     resnet50_model = Resnet50(opts).to(device)
 
@@ -457,5 +457,5 @@ if __name__ == "__main__":
 
 # nohup python -u "/home/lishuai/workspace/UniAV/modules/feature_embedding.py" >feature_embedding.log 2>&1 &
 # nohup python -u "/public/home/zwchen209/lishuai/UniAV/modules/feature_embedding.py" >output/unlabeled_audio_data_embedding.log 2>&1 &
-# nohup python -u "/public/home/zwchen209/lishuai/UniAV/modules/feature_embedding.py" >output/unlabeled_vidoe_data_embedding.log 2>&1 &
+# export CUDA_VISIBLE_DEVICES=0;  nohup python -u "/public/home/zwchen209/lishuai/UniAV/modules/feature_embedding.py" >output/unlabeled_vidoe_data_embedding.log 2>&1 &
 # 25584
