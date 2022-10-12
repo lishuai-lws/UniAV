@@ -6,7 +6,7 @@ import sys
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
 
-from module_embedding import AudioWav2Vec2, Resnet50
+from modules.module_embedding import AudioWav2Vec2, Resnet50
 import argparse
 import librosa
 import os
