@@ -23,6 +23,7 @@ import torchvision.transforms as transforms
 import logging
 
 logger = logging.getLogger("featureEmbedding")
+logger.setLevel(logging.DEBUG)
 
 
 def get_args(description='data embedding'):
