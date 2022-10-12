@@ -8,7 +8,7 @@ from torch.nn.init import xavier_uniform_, constant_
 #warning level 
 logging.set_verbosity_warning()
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
 class AudioWav2Vec2(nn.Module):
     def __init__(self,modelpath, device):

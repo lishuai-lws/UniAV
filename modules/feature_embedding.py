@@ -6,7 +6,7 @@ import sys
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
 
-from modules.module_embedding import AudioWav2Vec2, Resnet50
+from module_embedding import AudioWav2Vec2, Resnet50
 import argparse
 import librosa
 import os
@@ -276,7 +276,7 @@ def unlabeled_visual_data_embedding(opts):
     files_list = os.listdir(audios_path)
     json_path = opts.embedded_visual_json_path
     check_json = load_json(json_path)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     # load modal
     resnet50_model = Resnet50(opts).to(device)
 

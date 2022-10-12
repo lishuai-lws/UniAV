@@ -208,7 +208,7 @@ def prep_optimizer(args, model, num_train_optimization_steps, device, n_gpu, loc
 
     return optimizer, scheduler, model
 
-def dataloader_pretrain(args, tokenizer, only_sim=False):
+def dataloader_pretrain(args):
     # if args.local_rank == 0:
     #     logger.info('Loading captions: {}'.format(args.data_path))
     # # data_dict = pickle.load(open(args.data_path, 'rb'))
@@ -372,12 +372,12 @@ def main():
     args = set_seed_logger(args)
     device, n_gpu = init_device(args, args.local_rank)
 
-    tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)#可以删除
+    # tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)#可以删除
     model = init_model(args, device, n_gpu, args.local_rank)
     #应该不区分stage one
     only_sim = model.module._stage_one if hasattr(model, 'module') else model._stage_one
 
-    train_dataloader, train_length, sampler = dataloader_pretrain(args, tokenizer, only_sim=only_sim)
+    train_dataloader, train_length, sampler = dataloader_pretrain(args)
     num_train_optimization_steps = (int(len(train_dataloader) + args.gradient_accumulation_steps - 1)
                                     / args.gradient_accumulation_steps) * args.epochs
 
