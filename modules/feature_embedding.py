@@ -17,13 +17,12 @@ import math
 # import cv2
 import random
 import json
-from transformers import logging
 import torch
 from tqdm import tqdm
 import torchvision.transforms as transforms
+import logging
 
-# warning level
-logging.set_verbosity_error()
+logger = logging.getLogger("featureEmbedding")
 
 
 def get_args(description='data embedding'):
@@ -89,7 +88,8 @@ def unlabeled_data_csv(opts):
     df.to_csv(csv_path, index=False)
     check_json = load_json(opts.loaded_csv_path)
 
-    for file in tqdm(files_list):
+    for index, file in enumerate(files_list):
+        logger.info("------------开始处理第[{}/{}]个文件:{}-----------".format(index, len(files_list), file))
         if file in check_json:
             print(file, "have loaded csv")
             continue
@@ -115,24 +115,10 @@ def unlabeled_data_csv(opts):
                     if a_end - a_start < opts.min_audio_second:
                         continue
 
-                    # audioFeature = audio_Wav2Vec2(opts,wave_data[a_start:a_end])
-                    # print("audioFeature.shape:",audioFeature.shape)
-
-                    # extract video feature
-                    # video_length = len(video)
-                    # v_start = math.floor(video_length*a_start/wave_data.shape[0])
-                    # v_end = math.ceil(video_length*a_end/wave_data.shape[0])
-                    # print("v_start:",v_start,"v_end:",v_end)
-                    # videoFeature = video_resnet50(opts,video[v_start:v_end])
-                    # print("len(videoFeature):",len(videoFeature))
-
                     # save feature to_csv
                     audio_file = "audio/" + id + "_" + str(seg) + ".npy"
                     video_file = "video/" + id + "_" + str(seg) + ".npy"
-                    # audioFeaturePath = os.path.join(opts.feature_path,audio_file)
-                    # videoFeaturePath = os.path.join(opts.feature_path,video_file)
-                    # np.save(audioFeaturePath,audioFeature)
-                    # np.save(videoFeaturePath,videoFeature)
+
 
                     df = pd.DataFrame([[audio_file, video_file]])
                     df.to_csv(csv_path, mode="a", index=False, header=False)
@@ -141,23 +127,10 @@ def unlabeled_data_csv(opts):
                 # Discard less than the shortest speech duration
                 if audio_second < opts.min_audio_second:
                     continue
-                # extract audio features
-                # audioFeature = audio_Wav2Vec2(opts,wave_data)
-                # print(audioFeature.shape)
 
-                # extract video feature
-                # videoFeature = video_resnet50(opts,video)
-                # print(len(videoFeature))
-
-                # save feature to_csv
                 audio_file = "audio/" + id + ".npy"
                 video_file = "video/" + id + ".npy"
-                # audioFeaturePath = os.path.join(opts.feature_path,audio_file)
-                # videoFeaturePath = os.path.join(opts.feature_path,video_file)
-                # np.save(audioFeaturePath,audioFeature)
-                # np.save(videoFeaturePath,videoFeature)
 
-                # df = pd.DataFrame([[audio_file,video_file,label]])
                 df = pd.DataFrame([[audio_file, video_file]])
                 df.to_csv(csv_path, mode="a", index=False, header=False)
                 del df
@@ -280,7 +253,8 @@ def unlabeled_visual_data_embedding(opts):
     # load modal
     resnet50_model = Resnet50(opts).to(device)
 
-    for file in tqdm(files_list):
+    for index, file in enumerate(files_list):
+        logger.info("------------开始处理第[{}/{}]个视频文件夹:{}-----------".format(index, len(files_list), file))
         if file in check_json:
             print("visual file:", file, "have embedded")
             continue
@@ -289,6 +263,7 @@ def unlabeled_visual_data_embedding(opts):
         video_file_path = os.path.join(videos_path, file)
         for audio in audios_list:
             id = file + "_" + audio[:-4]
+            logger.info("处理视频段文件：{}".format(id))
             # print("id:", id)
             audio_path = os.path.join(file_path, audio)
             video_path = os.path.join(video_file_path, audio[:-4])
@@ -301,7 +276,7 @@ def unlabeled_visual_data_embedding(opts):
                 segment_num = math.ceil(audio_second / (max_audio_second - 1))
                 for seg in range(segment_num):
                     # print ("seg:",seg)
-
+                    logger.info("处理视频段：{}的第[{}/{}]段视频".format(id, seg+1, segment_num+1))
                     start = seg * (max_audio_second - 1)
                     end = min(audio_second, start + max_audio_second)
                     # print("start:",a_start,"end:",a_end)
@@ -315,7 +290,7 @@ def unlabeled_visual_data_embedding(opts):
                     v_end = math.ceil(images_length * end / audio_second)
                     # print("v_start:",v_start,"v_end:",v_end)
                     videoFeature = []
-                    for image in images_list[v_start:v_end]:
+                    for image in tqdm(images_list[v_start:v_end]):
                         img = Image.open(os.path.join(video_path, image))
                         i = image_tranforms(img, opts).to(device)
                         i = i.unsqueeze(0)
@@ -329,15 +304,16 @@ def unlabeled_visual_data_embedding(opts):
                     videoFeaturePath = os.path.join(feature_path, video_file)
                     videoFeature = np.array(videoFeature)
                     np.save(videoFeaturePath, videoFeature)
-                    print(id, " feature embedded, feature shape:", videoFeature.shape)
+                    print(id + "_" + str(seg), " feature embedded, feature shape:", videoFeature.shape)
             else:
+                logger.info("处理视频段：{}".format(id))
                 # Discard less than the shortest speech duration
                 if audio_second < opts.min_audio_second:
                     continue
 
                 # extract video feature
                 videoFeature = []
-                for image in images_list:
+                for image in tqdm(images_list):
                     img = Image.open(os.path.join(video_path, image))
                     i = image_tranforms(img, opts).to(device)
                     i = i.unsqueeze(0)
@@ -345,7 +321,7 @@ def unlabeled_visual_data_embedding(opts):
                     imageFeature = resnet50_model(i).detach().cpu().numpy()
                     videoFeature.append(imageFeature.reshape(-1))
                 # print(len(videoFeature))
-                #Ad9bX1PxNJY_00001
+                # Ad9bX1PxNJY_00001
                 # save feature to_csv
                 video_file = "video/" + id + ".npy"
                 videoFeaturePath = os.path.join(feature_path, video_file)
@@ -355,6 +331,7 @@ def unlabeled_visual_data_embedding(opts):
 
         check_json[file] = 1
         save_json(check_json, json_path)
+        logger.info("------------第[{}/{}]个文件:{}，处理结束-----------".format(index, len(files_list), file))
 
 
 def cmumosei_data_embedding(opts):

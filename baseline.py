@@ -30,6 +30,9 @@ class BaseLineModel(nn.Module):
     def __init__(self, base_config):
         self.cross = BaseModel(base_config)
 
+    def from_trained(self, ):
+        pass
+
 
 def get_args(description='UniVL on Pretrain'):
     parser = argparse.ArgumentParser(description=description)
