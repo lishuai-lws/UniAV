@@ -345,7 +345,7 @@ def unlabeled_visual_data_embedding(opts):
                     imageFeature = resnet50_model(i).detach().cpu().numpy()
                     videoFeature.append(imageFeature.reshape(-1))
                 # print(len(videoFeature))
-
+                #Ad9bX1PxNJY_00001
                 # save feature to_csv
                 video_file = "video/" + id + ".npy"
                 videoFeaturePath = os.path.join(feature_path, video_file)
