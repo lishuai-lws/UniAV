@@ -17,10 +17,10 @@ from modules.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 from modules.until_module import PreTrainedModel, LayerNorm
 from torch.nn import CrossEntropyLoss
 from modules.modeling import UniAV, UniVL
-from modules.module_baseline import BaseModel
+from modules.module_baseline import BaseModel, BaseClassifyHead, CrossConfig
 from modules.optimization import BertAdam
 from dataloaders.dataloader_howto100m import Youtube_DataLoader
-from dataloaders.dataloader_emotiondata import Emotion_DataLoader
+from dataloaders.dataloader_emotiondata import Base_DataLoader
 from torch.utils.data import DataLoader
 from util import get_logger
 from torch import nn
@@ -33,15 +33,23 @@ global logger
 class BaseLineModel(PreTrainedModel, nn.Module):
     def __init__(self, base_config):
         self.cross = BaseModel(base_config)
+        self.classifier = BaseClassifyHead(base_config)
         self.cross_entropy_loss = CrossEntropyLoss()
-        self.apply(self.init_weights)
 
-    def from_trained(self, ):
-        pass
+    def from_pretrained(self, base_model_name,  cache_dir=None, type_vocab_size=2, *inputs, **kwargs):
+        base_config = CrossConfig.get_config(base_model_name, cache_dir, type_vocab_size, state_dict=None)
+        model = self(base_config)
+        return model
 
     def forward(self, audio, video, emotion_label):
         cross_output, pooled_output = self.get_model_output(audio, video)
-        audio_cross_ouput, video_cross_ouput = torch.split(cross_output, [audio.size[1], video.size[1]],dim=1)
+        audio_cross_ouput, video_cross_ouput = torch.split(cross_output, [audio.size[1], video.size[1]], dim=1)
+        class_output = self.classifier(audio_cross_ouput, video_cross_ouput)
+
+        loss = self.cross_entropy_loss(class_output, emotion_label)
+
+        return loss
+
 
 
     def get_model_output(self, audio_feature, video_feature):
@@ -130,7 +138,7 @@ def get_args(description='UniVL on Pretrain'):
                         help="Enhance visual and other modalities when pretraining.")
 
     parser.add_argument("--load_checkpoint", action="store_true")
-    parser.add_argument("--checkpoint_model", default="pytorch_model.bin.checkpoint", type=str, required=False,
+    parser.add_argument("--checkpoint_model", default="pytorch_base_model.bin.checkpoint", type=str, required=False,
                         help="Save the last model as a checkpoint.")
 
     args = parser.parse_args()
@@ -207,7 +215,7 @@ def init_model(args, device, n_gpu, local_rank):
     # Prepare model
     # cache_dir = ""
     cache_dir = args.cache_dir if args.cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE), 'distributed')
-    model = UniAV.from_pretrained(args.audio_model, args.visual_model, args.cross_model,
+    model = BaseLineModel.from_pretrained(args.cross_model,
                                   state_dict=model_state_dict, cache_dir=cache_dir, task_config=args)
 
     model.to(device)
@@ -249,14 +257,14 @@ def prep_optimizer(args, model, num_train_optimization_steps, device, n_gpu, loc
     return optimizer, scheduler, model
 
 
-def dataloader_pretrain(args):
+def dataloader_basetrain(args):
     # if args.local_rank == 0:
     #     logger.info('Loading captions: {}'.format(args.data_path))
     # # data_dict = pickle.load(open(args.data_path, 'rb'))
     # if args.local_rank == 0:
     #     logger.info('Done, data_dict length: {}'.format(len(data_dict)))
 
-    cmumosei_dataset = Emotion_DataLoader(
+    cmumosei_dataset = Base_DataLoader(
         csv=args.cmumosei_csv,
         features_path=args.features_path,
         feature_framerate=args.feature_framerate,
@@ -294,7 +302,7 @@ def convert_state_dict_type(state_dict, ttype=torch.FloatTensor):
 def save_model(epoch, args, model, local_rank, type_name="", global_step=-1, optimizer=None):
     model_to_save = model.module if hasattr(model, 'module') else model
     output_model_file = os.path.join(
-        args.output_dir, "pytorch_model.bin.{}{}".format("" if type_name == "" else type_name + ".", epoch))
+        args.output_dir, "pytorch_base_model.bin.{}{}".format("" if type_name == "" else type_name + ".", epoch))
     torch.save(model_to_save.state_dict(), output_model_file)
     logger.info("Model saved to %s", output_model_file)
 
@@ -314,7 +322,7 @@ def save_model(epoch, args, model, local_rank, type_name="", global_step=-1, opt
 
 def load_model(epoch, args, n_gpu, device, model, global_step=0, model_file=None):
     if model_file is None or len(model_file) == 0:
-        model_file = os.path.join(args.output_dir, "pytorch_model.bin.{}".format(epoch))
+        model_file = os.path.join(args.output_dir, "pytorch_base_model.bin.{}".format(epoch))
 
     last_optim_state = None
     checkpoint_model_file = os.path.join(args.output_dir, args.checkpoint_model)
@@ -326,8 +334,7 @@ def load_model(epoch, args, n_gpu, device, model, global_step=0, model_file=None
         last_optim_state = checkpoint_state['last_optimizer_state']
         cache_dir = args.cache_dir if args.cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE),
                                                                        'distributed')
-        model = UniVL.from_pretrained(args.bert_model, args.visual_model, args.cross_model, args.decoder_model,
-                                      cache_dir=cache_dir, state_dict=model_state_dict, task_config=args)
+        model = BaseLineModel.from_pretrained( args.cross_model, cache_dir=cache_dir, state_dict=model_state_dict, task_config=args)
 
         model.to(device)
         if args.local_rank == 0:
@@ -339,8 +346,7 @@ def load_model(epoch, args, n_gpu, device, model, global_step=0, model_file=None
 
         cache_dir = args.cache_dir if args.cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE),
                                                                        'distributed')
-        model = UniVL.from_pretrained(args.bert_model, args.visual_model, args.cross_model, args.decoder_model,
-                                      cache_dir=cache_dir, state_dict=model_state_dict, task_config=args)
+        model = BaseLineModel.from_pretrained(args.cross_model, cache_dir=cache_dir, state_dict=model_state_dict, task_config=args)
 
         model.to(device)
 
@@ -358,15 +364,9 @@ def train_epoch(epoch, args, model, train_dataloader, device, n_gpu, optimizer, 
     for step, batch in enumerate(train_dataloader):
         batch = tuple(t.to(device=device, non_blocking=True) for t in batch)
 
-        input_ids, input_mask, segment_ids, video, video_mask, \
-        pairs_masked_text, pairs_token_labels, masked_video, video_labels_index, \
-        pairs_input_caption_ids, pairs_decoder_mask, pairs_output_caption_ids = batch
+        audio,  video, emotion_label = batch
 
-        loss = model(input_ids, segment_ids, input_mask, video, video_mask,
-                     pairs_masked_text=pairs_masked_text, pairs_token_labels=pairs_token_labels,
-                     masked_video=masked_video, video_labels_index=video_labels_index,
-                     input_caption_ids=pairs_input_caption_ids, decoder_mask=pairs_decoder_mask,
-                     output_caption_ids=pairs_output_caption_ids)
+        loss = model(audio, video, emotion_label)
 
         if n_gpu > 1:
             loss = loss.mean()
@@ -404,12 +404,9 @@ def main():
     args = set_seed_logger(args)
     device, n_gpu = init_device(args, args.local_rank)
 
-    # tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)#可以删除
     model = init_model(args, device, n_gpu, args.local_rank)
-    # 应该不区分stage one
-    only_sim = model.module._stage_one if hasattr(model, 'module') else model._stage_one
 
-    train_dataloader, train_length, sampler = dataloader_pretrain(args)
+    train_dataloader, train_length, sampler = dataloader_basetrain(args)
     num_train_optimization_steps = (int(len(train_dataloader) + args.gradient_accumulation_steps - 1)
                                     / args.gradient_accumulation_steps) * args.epochs
 

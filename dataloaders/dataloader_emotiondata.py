@@ -106,3 +106,37 @@ class Emotion_DataLoader(Dataset):
         audio_features = np.load(feature_file)
         emotion_label = os.path.join(self.features_path, self.csv["emotion_label"].values[idx])
         return audio_features, emotion_label
+
+class Base_DataLoader(Dataset):
+    def __init__(self,csv,features_path,max_frames, feature_framerate, video_dim=1024):
+        self.csv = pd.read_csv(csv)
+        self.features_path = features_path
+        self.max_frames = max_frames
+        self.feature_size = video_dim
+        self.feature_framerate = feature_framerate
+        self.iter_num = len(self.csv)
+
+    def __len__(self) -> int:
+        return self.iter_num
+
+    def __getitem__(self, feature_idx):
+        idx = feature_idx
+
+        video = self._get_video(idx, np.array(0), np.array(1))
+        audio, emotion_label = self._get_audio(idx)
+
+        return audio,  video, emotion_label
+
+
+    def _get_video(self,idx,s,e):
+
+        feature_file = os.path.join(self.features_path, self.csv["video_feature"].values[idx])
+        video_features = np.load(feature_file)
+
+        return video_features
+
+    def _get_audio(self, idx):
+        feature_file = os.path.join(self.features_path, self.csv["audio_feature"].values[idx])
+        audio_features = np.load(feature_file)
+        emotion_label = os.path.join(self.features_path, self.csv["emotion_label"].values[idx])
+        return audio_features, emotion_label

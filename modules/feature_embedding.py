@@ -5,6 +5,7 @@ import sys
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 from modules.module_embedding import AudioWav2Vec2, Resnet50
 import argparse
@@ -23,7 +24,6 @@ import torchvision.transforms as transforms
 import logging
 
 logger = logging.getLogger("featureEmbedding")
-logger.setLevel(logging.DEBUG)
 
 
 def get_args(description='data embedding'):
@@ -435,5 +435,5 @@ if __name__ == "__main__":
 
 # nohup python -u "/home/lishuai/workspace/UniAV/modules/feature_embedding.py" >feature_embedding.log 2>&1 &
 # nohup python -u "/public/home/zwchen209/lishuai/UniAV/modules/feature_embedding.py" >output/unlabeled_audio_data_embedding.log 2>&1 &
-# export CUDA_VISIBLE_DEVICES=0;  nohup python -u "/public/home/zwchen209/lishuai/UniAV/modules/feature_embedding.py" >output/unlabeled_vidoe_data_embedding.log 2>&1 &
+# export CUDA_VISIBLE_DEVICES=1;  nohup python -u "/public/home/zwchen209/lishuai/UniAV/modules/feature_embedding.py" >output/unlabeled_vidoe_data_embedding.log 2>&1 &
 # 25584

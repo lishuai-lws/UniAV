@@ -392,3 +392,16 @@ class BaseModel(PreTrainedModel):
         if not output_all_encoded_layers:
             encoded_layers = encoded_layers[-1]
         return encoded_layers, pooled_output
+
+class BaseClassifyHead(nn.Module):
+    def __init__(self, config):
+        super(BaseClassifyHead, self).__init__()
+        self.linear = nn.Linear(config.hidden_size*2, config.num_classes)
+
+    def forwaed(self, audio_output, video_output):
+        audio_output = torch.sum(audio_output,dim=1) / audio_output.size(1)
+        video_output = torch.sum(video_output, dim=1) / video_output.size(1)
+        cross_output = torch.cat((audio_output, video_output), dim=1)
+        output = self.linear(cross_output)
+
+        return output
