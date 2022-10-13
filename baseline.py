@@ -96,7 +96,7 @@ def get_args(description='UniVL on Pretrain'):
 
     parser.add_argument("--output_dir", default="", type=str, required=True,
                         help="The output directory where the model predictions and checkpoints will be written.")
-    parser.add_argument("--bert_model", default="bert-base-uncased", type=str, required=True,
+    parser.add_argument("--bert_model", default="bert-base-uncased", type=str, required=False,
                         help="Bert pre-trained model")
     parser.add_argument("--audio_model", default="audio-base", type=str, help="Audio model")
     parser.add_argument("--visual_model", default="visual-base", type=str, required=False, help="Visual module")
@@ -140,6 +140,10 @@ def get_args(description='UniVL on Pretrain'):
     parser.add_argument("--load_checkpoint", action="store_true")
     parser.add_argument("--checkpoint_model", default="pytorch_base_model.bin.checkpoint", type=str, required=False,
                         help="Save the last model as a checkpoint.")
+    
+    #运行时参数
+    parser.add_argument("--nproc_per_node",type=int, default=8)
+
 
     args = parser.parse_args()
 
@@ -451,3 +455,20 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+'''
+ROOT_PATH=.
+DATA_PATH=${ROOT_PATH}/data
+SAVE_PATH=${ROOT_PATH}/models
+MODEL_PATH=${ROOT_PATH}/UniAV
+python -m torch.distributed.launch  \
+${MODEL_PATH}/baseline.py \
+ --do_pretrain --num_thread_reader=0 --epochs=1 \
+--batch_size=128 --n_pair=1 --n_display=100 \
+--do_lower_case --lr 1e-4 \
+--max_words 48 --max_frames 512 --batch_size_val 344 \
+--output_dir ${SAVE_PATH}/pre_trained/basemodel \
+--features_path ${ROOT_PATH}/feature \
+--visual_num_hidden_layers 6 --gradient_accumulation_steps 16 
+
+'''
