@@ -36,6 +36,7 @@ class BaseLineModel(PreTrainedModel, nn.Module):
         self.classifier = BaseClassifyHead(base_config)
         self.cross_entropy_loss = CrossEntropyLoss()
 
+    @classmethod
     def from_pretrained(self, base_model_name,  cache_dir=None, type_vocab_size=2, *inputs, **kwargs):
         base_config = CrossConfig.get_config(base_model_name, cache_dir, type_vocab_size, state_dict=None)
         model = self(base_config)
@@ -219,7 +220,7 @@ def init_model(args, device, n_gpu, local_rank):
     # Prepare model
     # cache_dir = ""
     cache_dir = args.cache_dir if args.cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE), 'distributed')
-    model = BaseLineModel.from_pretrained(args.cross_model, state_dict=model_state_dict, cache_dir=cache_dir, task_config=args)
+    model = BaseLineModel.from_pretrained(args.cross_model,  cache_dir=cache_dir, state_dict=model_state_dict, task_config=args)
 
     model.to(device)
 
