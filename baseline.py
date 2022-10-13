@@ -219,8 +219,7 @@ def init_model(args, device, n_gpu, local_rank):
     # Prepare model
     # cache_dir = ""
     cache_dir = args.cache_dir if args.cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE), 'distributed')
-    model = BaseLineModel.from_pretrained(args.cross_model,
-                                  state_dict=model_state_dict, cache_dir=cache_dir, task_config=args)
+    model = BaseLineModel.from_pretrained(args.cross_model, state_dict=model_state_dict, cache_dir=cache_dir, task_config=args)
 
     model.to(device)
 
